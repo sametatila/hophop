@@ -184,14 +184,72 @@ class EffectPainter extends CustomPainter {
   bool shouldRepaint(EffectPainter old) => old.frame != frame;
 }
 
-/// Efekt seçici şeridindeki simgeler.
+/// Efekt seçici şeridindeki öğeler.
 const effectCatalog = [
-  (id: 'none', emoji: '🚫', label: 'Yok'),
-  (id: 'bunny', emoji: '🐰', label: 'Tavşan'),
-  (id: 'dog', emoji: '🐶', label: 'Köpek'),
-  (id: 'crown', emoji: '👑', label: 'Taç'),
-  (id: 'glasses', emoji: '🤓', label: 'Gözlük'),
-  (id: 'mustache', emoji: '🥸', label: 'Bıyık'),
+  (id: 'none', label: 'Yok'),
+  (id: 'bunny', label: 'Tavşan'),
+  (id: 'dog', label: 'Köpek'),
+  (id: 'crown', label: 'Taç'),
+  (id: 'glasses', label: 'Gözlük'),
+  (id: 'mustache', label: 'Bıyık'),
 ];
 
 double degToRad(double deg) => deg * math.pi / 180;
+
+/// Efektin kendisini örnek bir yüz üzerinde çizen mini önizleme
+/// (emoji yerine — efekt neyse onu gösterir).
+class EffectThumb extends StatelessWidget {
+  final String effectId;
+  final double size;
+  const EffectThumb({super.key, required this.effectId, this.size = 36});
+
+  static const _sampleFace = FxFrame(
+    effect: '',
+    cx: 0.5, cy: 0.62, w: 0.55, h: 0.5, rz: 0, mouth: 1,
+    lx: 0.38, ly: 0.56, rx: 0.62, ry: 0.56, nx: 0.5, ny: 0.66,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (effectId == 'none') {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Icon(Icons.block, color: Colors.white70, size: size * 0.7),
+      );
+    }
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _ThumbPainter(effectId),
+      ),
+    );
+  }
+}
+
+class _ThumbPainter extends CustomPainter {
+  final String effectId;
+  const _ThumbPainter(this.effectId);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Örnek yüz: ten rengi daire + gözler
+    final f = EffectThumb._sampleFace;
+    final face = Offset(f.cx * size.width, f.cy * size.height);
+    canvas.drawCircle(face, f.w * size.width * 0.5,
+        Paint()..color = const Color(0xFFF0C8A0));
+    for (final e in [(f.lx, f.ly), (f.rx, f.ry)]) {
+      canvas.drawCircle(Offset(e.$1 * size.width, e.$2 * size.height),
+          size.width * 0.035, Paint()..color = Colors.black87);
+    }
+    EffectPainter(FxFrame(
+      effect: effectId,
+      cx: f.cx, cy: f.cy, w: f.w, h: f.h, rz: 0, mouth: 1,
+      lx: f.lx, ly: f.ly, rx: f.rx, ry: f.ry, nx: f.nx, ny: f.ny,
+    )).paint(canvas, size);
+  }
+
+  @override
+  bool shouldRepaint(_ThumbPainter old) => old.effectId != effectId;
+}

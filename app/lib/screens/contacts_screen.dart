@@ -43,7 +43,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${user.firstName} kişisine istek gönderildi 💌')),
+          SnackBar(content: Text('${user.firstName} kişisine istek gönderildi')),
         );
       }
     } on ApiException {
@@ -75,16 +75,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                     trailing: switch (u.friendStatus) {
                       'friend' => const Chip(
-                          label: Text('Arkadaş ✓'),
+                          avatar: Icon(Icons.check_circle,
+                              color: Colors.green, size: 18),
+                          label: Text('Arkadaş'),
                           backgroundColor: Color(0xFFD0F0C0)),
-                      'requested' => const Chip(label: Text('İstek gönderildi ⏳')),
+                      'requested' => const Chip(
+                          avatar: Icon(Icons.hourglass_top, size: 18),
+                          label: Text('İstek gönderildi')),
                       'incoming' => const Chip(
-                          label: Text('Seni ekledi — İstekler\'e bak 👀')),
-                      _ => FilledButton.tonal(
+                          avatar: Icon(Icons.mark_email_unread, size: 18),
+                          label: Text('Seni ekledi — İstekler\'e bak')),
+                      _ => FilledButton.tonalIcon(
                           onPressed: _busyIds.contains(u.id)
                               ? null
                               : () => _sendRequest(u),
-                          child: const Text('Arkadaş ekle'),
+                          icon: const Icon(Icons.person_add, size: 18),
+                          label: const Text('Arkadaş ekle'),
                         ),
                     },
                   );

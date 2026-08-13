@@ -16,6 +16,9 @@ class FcmService {
   /// Uygulama açıkken gelen arama olayları buradan akar (CallManager dinler).
   static final callEvents = StreamController<RemoteMessage>.broadcast();
 
+  /// Gelen mesaj olayları (açık ChatScreen anında güncellenir).
+  static final messageEvents = StreamController<RemoteMessage>.broadcast();
+
   static Future<void> init() async {
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
     FirebaseMessaging.onMessage.listen(_handleForeground);
@@ -55,14 +58,22 @@ class FcmService {
       case 'friend_request':
         await NotificationService.showGeneral(
           2001,
-          'Arkadaşlık isteği 👋',
+          'Arkadaşlık isteği',
           '${message.data['fromName']} seninle arkadaş olmak istiyor',
         );
       case 'request_accepted':
         await NotificationService.showGeneral(
           2002,
-          'İstek kabul edildi 🎉',
+          'İstek kabul edildi',
           '${message.data['byName']} artık arkadaşın — arayabilirsin!',
+        );
+      case 'new_message':
+        messageEvents.add(message);
+        // İçerik bildirimde gösterilmez (uçtan uca şifreli — yalnızca gönderen adı).
+        await NotificationService.showGeneral(
+          2003,
+          message.data['fromName'] as String? ?? 'Yeni mesaj',
+          'Sana bir mesaj gönderdi',
         );
     }
   }
@@ -83,14 +94,20 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
     case 'friend_request':
       await NotificationService.showGeneral(
         2001,
-        'Arkadaşlık isteği 👋',
+        'Arkadaşlık isteği',
         '${message.data['fromName']} seninle arkadaş olmak istiyor',
       );
     case 'request_accepted':
       await NotificationService.showGeneral(
         2002,
-        'İstek kabul edildi 🎉',
+        'İstek kabul edildi',
         '${message.data['byName']} artık arkadaşın — arayabilirsin!',
+      );
+    case 'new_message':
+      await NotificationService.showGeneral(
+        2003,
+        message.data['fromName'] as String? ?? 'Yeni mesaj',
+        'Sana bir mesaj gönderdi',
       );
   }
 }

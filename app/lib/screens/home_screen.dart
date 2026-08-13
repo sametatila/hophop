@@ -4,6 +4,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
 import '../widgets/avatar.dart';
+import 'chat_screen.dart';
 
 /// Ana ekran: arkadaş kartları + yaklaşan doğum günleri şeridi.
 class HomeScreen extends StatefulWidget {
@@ -24,11 +25,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    // Önce önbellek (anında görüntü), sonra ağ.
+    // Önce önbellek (anında görüntü), sonra ağ — spinner ağı BEKLEMEZ.
     final cached = await AuthService.cachedFriends();
-    if (cached.isNotEmpty && mounted) {
+    if (mounted) {
       setState(() {
-        _friends = cached;
+        if (cached.isNotEmpty) _friends = cached;
         _loading = false;
       });
     }
@@ -55,20 +56,30 @@ class _HomeScreenState extends State<HomeScreen> {
           (a.daysUntilBirthday ?? 999).compareTo(b.daysUntilBirthday ?? 999));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('🐇 HopHop')),
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.cruelty_free, size: 28),
+            SizedBox(width: 8),
+            Text('HopHop'),
+          ],
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _friends.isEmpty
                 ? ListView(
-                    children: const [
-                      SizedBox(height: 120),
-                      Center(
+                    children: [
+                      const SizedBox(height: 100),
+                      Icon(Icons.emoji_people,
+                          size: 64, color: Theme.of(context).colorScheme.outline),
+                      const Center(
                         child: Padding(
-                          padding: EdgeInsets.all(32),
+                          padding: EdgeInsets.all(24),
                           child: Text(
-                            'Henüz arkadaşın yok 🌱\n\n"Kişiler" sekmesinden aileni bul\nve arkadaşlık isteği gönder!',
+                            'Henüz arkadaşın yok\n\n"Kişiler" sekmesinden aileni bul\nve arkadaşlık isteği gönder!',
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 18),
                           ),
@@ -95,8 +106,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('🎂 Yaklaşan doğum günleri',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Row(
+              children: [
+                Icon(Icons.cake, size: 20),
+                SizedBox(width: 6),
+                Text('Yaklaşan doğum günleri',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 88,
@@ -114,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(f.firstName,
                           style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text(
-                        days == 0 ? 'BUGÜN! 🎉' : '$days gün kaldı',
+                        days == 0 ? 'BUGÜN!' : '$days gün kaldı',
                         style: TextStyle(
                           fontSize: 12,
                           color: days == 0 ? Colors.red : Colors.black54,
@@ -152,10 +169,21 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    isBirthday ? '🎉 ${friend.fullName} 🎂' : friend.fullName,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      if (isBirthday) ...[
+                        const Icon(Icons.cake, color: Colors.deepOrange, size: 20),
+                        const SizedBox(width: 4),
+                      ],
+                      Flexible(
+                        child: Text(
+                          friend.fullName,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                   if (isBirthday)
                     const Text('Bugün doğum günü! Ara ve kutla!',
@@ -164,14 +192,22 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             IconButton.filledTonal(
-              iconSize: 28,
+              iconSize: 26,
+              tooltip: 'Mesaj gönder',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ChatScreen(friend: friend))),
+              icon: const Icon(Icons.chat_bubble),
+            ),
+            const SizedBox(width: 6),
+            IconButton.filledTonal(
+              iconSize: 26,
               tooltip: 'Sesli ara',
               onPressed: () => CallManager.startCall(friend, false),
               icon: const Icon(Icons.call),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             IconButton.filled(
-              iconSize: 28,
+              iconSize: 26,
               tooltip: 'Görüntülü ara',
               onPressed: () => CallManager.startCall(friend, true),
               icon: const Icon(Icons.videocam),

@@ -7,6 +7,8 @@ import '../services/call_manager.dart';
 import '../widgets/avatar.dart';
 
 /// Uygulama içi gelen arama ekranı (uygulama açıkken; kapalıyken bildirim var).
+/// Cevaplayınca ekran kapanmaz: "Bağlanıyor…" durumuna geçer ve görüşme
+/// ekranı bu ekranın YERİNE gelir — arada ana ekran görünmez.
 class IncomingCallScreen extends StatefulWidget {
   final IncomingCall call;
   const IncomingCallScreen({super.key, required this.call});
@@ -18,12 +20,13 @@ class IncomingCallScreen extends StatefulWidget {
 class _IncomingCallScreenState extends State<IncomingCallScreen> {
   Timer? _timeout;
   UserProfile? _caller;
+  bool _connecting = false;
 
   @override
   void initState() {
     super.initState();
     _timeout = Timer(ringTimeout, () {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && !_connecting) Navigator.of(context).pop();
     });
     AuthService.cachedFriends().then((friends) {
       final match =
@@ -36,6 +39,16 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   void dispose() {
     _timeout?.cancel();
     super.dispose();
+  }
+
+  Future<void> _answer() async {
+    _timeout?.cancel();
+    setState(() => _connecting = true);
+    // CallManager bağlantı kurulunca bu ekranı CallScreen ile DEĞİŞTİRİR.
+    final joined = await CallManager.answerIncoming(widget.call);
+    if (!joined && mounted) {
+      Navigator.of(context).pop(); // kurulamadı — geri dön (toast gösterildi)
+    }
   }
 
   @override
@@ -52,65 +65,86 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF1B2430),
         body: SafeArea(
-          child: Column(
-            children: [
-              const Spacer(),
-              Avatar(user: caller, radius: 72),
-              const SizedBox(height: 24),
-              Text(call.callerName,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(
-                call.video ? '📹 Görüntülü arıyor…' : '📞 Sesli arıyor…',
-                style: const TextStyle(color: Colors.white70, fontSize: 18),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 48),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          child: SizedBox.expand(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Spacer(),
+                Avatar(user: caller, radius: 72),
+                const SizedBox(height: 24),
+                Text(call.callerName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Column(
-                      children: [
-                        FloatingActionButton.large(
-                          heroTag: 'reject',
-                          backgroundColor: Colors.red,
-                          onPressed: () {
-                            _timeout?.cancel();
-                            Navigator.of(context).pop();
-                            CallManager.rejectIncoming(call);
-                          },
-                          child: const Icon(Icons.call_end, size: 40),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('Reddet',
-                            style: TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        FloatingActionButton.large(
-                          heroTag: 'answer',
-                          backgroundColor: Colors.green,
-                          onPressed: () {
-                            _timeout?.cancel();
-                            Navigator.of(context).pop();
-                            CallManager.answerIncoming(call);
-                          },
-                          child: const Icon(Icons.call, size: 40),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('Cevapla',
-                            style: TextStyle(color: Colors.white)),
-                      ],
+                    Icon(call.video ? Icons.videocam : Icons.call,
+                        color: Colors.white70, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      _connecting
+                          ? 'Bağlanıyor…'
+                          : call.group
+                              ? 'Seni gruba çağırıyor…'
+                              : call.video
+                                  ? 'Görüntülü arıyor…'
+                                  : 'Sesli arıyor…',
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 18),
                     ),
                   ],
                 ),
-              ),
-            ],
+                if (_connecting) ...[
+                  const SizedBox(height: 24),
+                  const CircularProgressIndicator(color: Colors.white54),
+                ],
+                const Spacer(),
+                if (!_connecting)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 48),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            FloatingActionButton.large(
+                              heroTag: 'reject',
+                              backgroundColor: Colors.red,
+                              onPressed: () {
+                                _timeout?.cancel();
+                                Navigator.of(context).pop();
+                                CallManager.rejectIncoming(widget.call);
+                              },
+                              child: const Icon(Icons.call_end, size: 40),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('Reddet',
+                                style: TextStyle(color: Colors.white)),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            FloatingActionButton.large(
+                              heroTag: 'answer',
+                              backgroundColor: Colors.green,
+                              onPressed: _answer,
+                              child: const Icon(Icons.call, size: 40),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('Cevapla',
+                                style: TextStyle(color: Colors.white)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox(height: 88),
+              ],
+            ),
           ),
         ),
       ),

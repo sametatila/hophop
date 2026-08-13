@@ -122,9 +122,9 @@ class ApiClient {
         String livekitToken,
         String livekitUrl,
         String? calleePublicKey
-      })> initiateCall(String calleeId, bool video) async {
-    final r = await _request(
-        'POST', '/api/call/initiate', {'calleeId': calleeId, 'video': video});
+      })> initiateCall(String calleeId, bool video, String roomKeyEnc) async {
+    final r = await _request('POST', '/api/call/initiate',
+        {'calleeId': calleeId, 'video': video, 'roomKeyEnc': roomKeyEnc});
     return (
       roomName: r['roomName'] as String,
       livekitToken: r['livekitToken'] as String,
@@ -149,6 +149,38 @@ class ApiClient {
 
   Future<void> cancelCall(String roomName, String calleeId) => _request(
       'POST', '/api/call/cancel', {'roomName': roomName, 'calleeId': calleeId});
+
+  /// Süren aramaya davet (grup arama, en fazla 6 kişi).
+  Future<void> inviteToCall(
+          String roomName, String calleeId, bool video, String roomKeyEnc) =>
+      _request('POST', '/api/call/invite', {
+        'roomName': roomName,
+        'calleeId': calleeId,
+        'video': video,
+        'roomKeyEnc': roomKeyEnc,
+      });
+
+  // ---- Mesajlaşma (uçtan uca şifreli) ----
+
+  Future<String> sendMessage(String toUserId, String ciphertext) async {
+    final r = await _request('POST', '/api/messages/send',
+        {'toUserId': toUserId, 'ciphertext': ciphertext});
+    return r['messageId'] as String;
+  }
+
+  Future<List<({String id, String fromUserId, String ciphertext, int sentAtMs})>>
+      listMessages(String withUserId, {int afterMs = 0}) async {
+    final r = await _request(
+        'GET', '/api/messages/list?withUserId=$withUserId&afterMs=$afterMs');
+    return (r['messages'] as List)
+        .map((m) => (
+              id: m['id'] as String,
+              fromUserId: m['fromUserId'] as String,
+              ciphertext: m['ciphertext'] as String,
+              sentAtMs: (m['sentAtMs'] as num).toInt(),
+            ))
+        .toList();
+  }
 }
 
 /// Uygulama genelinde tek örnek.

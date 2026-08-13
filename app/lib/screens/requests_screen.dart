@@ -44,7 +44,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       if (accept && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
-                '${entry.user?.firstName ?? ''} artık arkadaşın! Ana ekrandan arayabilirsin 🎉')));
+                '${entry.user?.firstName ?? ''} artık arkadaşın! Ana ekrandan arayabilirsin')));
       }
     } catch (_) {}
   }
@@ -67,9 +67,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
             : ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
-                  const Text('📥 Gelen istekler',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Row(
+                    children: [
+                      Icon(Icons.move_to_inbox),
+                      SizedBox(width: 8),
+                      Text('Gelen istekler',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   if (_incoming.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(16),
@@ -99,9 +105,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         ),
                       )),
                   const SizedBox(height: 24),
-                  const Text('📤 Gönderilen istekler',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Row(
+                    children: [
+                      Icon(Icons.outbox),
+                      SizedBox(width: 8),
+                      Text('Gönderilen istekler',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   if (_outgoing.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(16),

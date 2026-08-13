@@ -78,6 +78,8 @@ class IncomingCall {
   final String callerName;
   final bool video;
   final String callerPublicKey;
+  final String roomKeyEnc; // arayanın bize özel sarılmış oda anahtarı
+  final bool group; // süren bir aramaya davet mi
 
   IncomingCall({
     required this.roomName,
@@ -85,6 +87,8 @@ class IncomingCall {
     required this.callerName,
     required this.video,
     required this.callerPublicKey,
+    this.roomKeyEnc = '',
+    this.group = false,
   });
 
   factory IncomingCall.fromData(Map<String, dynamic> data) => IncomingCall(
@@ -93,6 +97,8 @@ class IncomingCall {
         callerName: data['callerName'] as String? ?? 'HopHop',
         video: data['video'] == '1',
         callerPublicKey: data['callerPublicKey'] as String? ?? '',
+        roomKeyEnc: data['roomKeyEnc'] as String? ?? '',
+        group: data['group'] == '1',
       );
 
   Map<String, String> toData() => {
@@ -101,5 +107,22 @@ class IncomingCall {
         'callerName': callerName,
         'video': video ? '1' : '0',
         'callerPublicKey': callerPublicKey,
+        'roomKeyEnc': roomKeyEnc,
+        'group': group ? '1' : '0',
       };
+}
+
+/// Uçtan uca şifreli sohbet mesajı (çözülmüş hali).
+class ChatMessage {
+  final String id;
+  final String fromUserId;
+  final String text;
+  final int sentAtMs;
+
+  ChatMessage({
+    required this.id,
+    required this.fromUserId,
+    required this.text,
+    required this.sentAtMs,
+  });
 }

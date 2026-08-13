@@ -18,13 +18,14 @@ class FxController {
   /// Yerel önizlemeye çizilecek kare (aynalı koordinatlarda).
   final localFx = ValueNotifier<FxFrame?>(null);
 
-  /// Uzak videoya çizilecek kare (karşı tarafın yüzü + efekti).
-  final remoteFx = ValueNotifier<FxFrame?>(null);
+  /// Uzak videolara çizilecek kareler — katılımcı kimliğine göre
+  /// (grup aramada her kişinin kendi efekti kendi karosuna çizilir).
+  final remoteFx = ValueNotifier<Map<String, FxFrame>>({});
 
   final effect = ValueNotifier<String>('none');
 
   EventsListener<RoomEvent>? _listener;
-  Timer? _remoteExpiry;
+  final _remoteExpiry = <String, Timer>{};
 
   FxController({required this.room, required GlobalKey localPreviewKey})
       : tracker = FaceTracker(previewKey: localPreviewKey) {
@@ -33,13 +34,22 @@ class FxController {
     _listener = room.createListener()
       ..on<DataReceivedEvent>((e) {
         if (e.topic != 'fx') return;
+        final identity = e.participant?.identity;
+        if (identity == null) return;
         final frame = FxFrame.decode(e.data);
         if (frame == null) return;
-        remoteFx.value = frame.isOff ? null : frame;
-        // Karşı taraf veri kesilirse eskimiş overlay asılı kalmasın.
-        _remoteExpiry?.cancel();
-        _remoteExpiry = Timer(const Duration(seconds: 2), () {
-          remoteFx.value = null;
+        final map = Map<String, FxFrame>.from(remoteFx.value);
+        if (frame.isOff) {
+          map.remove(identity);
+        } else {
+          map[identity] = frame;
+        }
+        remoteFx.value = map;
+        // Veri kesilirse eskimiş overlay asılı kalmasın.
+        _remoteExpiry[identity]?.cancel();
+        _remoteExpiry[identity] = Timer(const Duration(seconds: 2), () {
+          final m = Map<String, FxFrame>.from(remoteFx.value)..remove(identity);
+          remoteFx.value = m;
         });
       });
   }
@@ -71,7 +81,9 @@ class FxController {
 
   Future<void> dispose() async {
     effect.removeListener(_onEffectChanged);
-    _remoteExpiry?.cancel();
+    for (final t in _remoteExpiry.values) {
+      t.cancel();
+    }
     await _listener?.dispose();
     await tracker.dispose();
     localFx.dispose();

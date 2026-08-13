@@ -19,11 +19,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _aggressiveOem = false;
 
   static final _labels = {
-    Permission.notification: ('🔔', 'Bildirimler', 'Gelen aramaların çalması için'),
-    Permission.camera: ('📷', 'Kamera', 'Görüntülü arama için'),
-    Permission.microphone: ('🎤', 'Mikrofon', 'Sesin karşıya gitmesi için'),
+    Permission.notification: (
+      Icons.notifications_active,
+      'Bildirimler',
+      'Gelen aramaların çalması için'
+    ),
+    Permission.camera: (Icons.photo_camera, 'Kamera', 'Görüntülü arama için'),
+    Permission.microphone: (Icons.mic, 'Mikrofon', 'Sesin karşıya gitmesi için'),
     Permission.ignoreBatteryOptimizations: (
-      '🔋',
+      Icons.battery_saver,
       'Pil optimizasyonu muafiyeti',
       'Arka planda arama kaçırmamak için'
     ),
@@ -78,11 +82,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   e.key != Permission.ignoreBatteryOptimizations ||
                   _aggressiveOem)
               .map((e) {
-            final (emoji, title, why) = _labels[e.key]!;
+            final (icon, title, why) = _labels[e.key]!;
             final ok = e.value.isGranted;
             return Card(
               child: ListTile(
-                leading: Text(emoji, style: const TextStyle(fontSize: 28)),
+                leading: Icon(icon, size: 30),
                 title: Text(title),
                 subtitle: Text(why),
                 trailing: ok
@@ -102,10 +106,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: Colors.blue.shade50,
             child: const Padding(
               padding: EdgeInsets.all(16),
-              child: Text(
-                '🔒 Gizlilik: Görüşmelerin uçtan uca şifrelidir. '
-                'Ne sunucular ne de uygulamayı kuran kişi görüşmelerini izleyebilir veya dinleyebilir.',
-                style: TextStyle(fontSize: 14),
+              child: Row(
+                children: [
+                  Icon(Icons.lock, color: Colors.blueGrey),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Gizlilik: Görüşmelerin ve mesajların uçtan uca şifrelidir. '
+                      'Ne sunucular ne de uygulamayı kuran kişi içeriklerini görebilir.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -133,7 +145,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (sure == true && context.mounted) {
                 await auth.logout();
                 if (context.mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
+                  // rootNavigator: giriş ekranı sekmenin içinde değil,
+                  // uygulamanın kökünde açılmalı.
+                  Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                     (_) => false,
                   );

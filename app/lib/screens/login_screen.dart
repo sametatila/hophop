@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     final bd = _birthDate;
     if (_first.text.trim().isEmpty || _last.text.trim().isEmpty || bd == null) {
-      setState(() => _error = 'Tüm alanları doldur 🙂');
+      setState(() => _error = 'Tüm alanları doldurmalısın');
       return;
     }
     setState(() {
@@ -76,7 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('🐇', style: TextStyle(fontSize: 72)),
+                Icon(Icons.cruelty_free,
+                    size: 88, color: theme.colorScheme.primary),
                 Text('HopHop',
                     style: theme.textTheme.displaySmall
                         ?.copyWith(fontWeight: FontWeight.bold)),
@@ -87,6 +88,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _first,
                   textCapitalization: TextCapitalization.words,
+                  autocorrect: false, // isimler otomatik düzeltmeyle bozulmasın
+                  enableSuggestions: false,
+                  keyboardType: TextInputType.name,
+                  textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
                       labelText: 'Adın', prefixIcon: Icon(Icons.person)),
                 ),
@@ -94,6 +99,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _last,
                   textCapitalization: TextCapitalization.words,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  keyboardType: TextInputType.name,
+                  textInputAction: TextInputAction.done,
                   decoration: const InputDecoration(
                       labelText: 'Soyadın',
                       prefixIcon: Icon(Icons.family_restroom)),
@@ -127,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 24,
                           height: 24,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Hadi başlayalım! 🎉',
+                      : const Text('Hadi başlayalım!',
                           style: TextStyle(fontSize: 18)),
                 ),
               ],

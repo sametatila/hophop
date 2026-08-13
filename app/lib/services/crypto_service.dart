@@ -32,9 +32,9 @@ class CryptoService {
     return kp;
   }
 
-  /// Oda anahtarı: ECDH(benim özel, karşının açık) → HKDF-SHA256(salt: odaAdı).
-  /// İki taraf da aynı değeri türetir; base64 olarak LiveKit key provider'a verilir.
-  Future<String> deriveRoomKey(String remotePublicKeyB64, String roomName) async {
+  /// İki taraf arasında bağlama özel simetrik anahtar türetir:
+  /// ECDH(benim özel, karşının açık) → HKDF-SHA256(salt: context).
+  Future<SecretKey> _pairwiseKey(String remotePublicKeyB64, String context) async {
     final kp = await _keyPair();
     final shared = await _x25519.sharedSecretKey(
       keyPair: kp,
@@ -42,13 +42,60 @@ class CryptoService {
           SimplePublicKey(base64Decode(remotePublicKeyB64), type: KeyPairType.x25519),
     );
     final hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
-    final derived = await hkdf.deriveKey(
+    return hkdf.deriveKey(
       secretKey: shared,
-      nonce: utf8.encode(roomName),
+      nonce: utf8.encode(context),
       info: utf8.encode('hophop-e2ee-v1'),
     );
-    return base64Encode(await derived.extractBytes());
   }
+
+  final _aes = AesGcm.with256bits();
+
+  Future<String> _sealWith(SecretKey key, List<int> plain) async {
+    final box = await _aes.encrypt(plain, secretKey: key);
+    return base64Encode(box.concatenation()); // nonce|cipher|mac
+  }
+
+  Future<List<int>> _openWith(SecretKey key, String sealedB64) async {
+    final box = SecretBox.fromConcatenation(
+      base64Decode(sealedB64),
+      nonceLength: AesGcm.defaultNonceLength,
+      macLength: 16,
+    );
+    return _aes.decrypt(box, secretKey: key);
+  }
+
+  /// Rastgele oda anahtarı (grup aramalar dahil) — arayan üretir,
+  /// her katılımcıya o kişiye özel sarılmış (wrap) halde iletilir.
+  String generateRoomKey() {
+    final bytes = SecretKeyData.random(length: 32).bytes;
+    return base64Encode(bytes);
+  }
+
+  /// Oda anahtarını karşı tarafa özel sarar. Sunucu bu değeri çözemez.
+  Future<String> wrapRoomKey(
+          String remotePublicKeyB64, String roomName, String roomKeyB64) =>
+      _pairwiseKey(remotePublicKeyB64, 'wrap|$roomName')
+          .then((k) => _sealWith(k, base64Decode(roomKeyB64)));
+
+  /// Gelen sarılmış oda anahtarını açar.
+  Future<String> unwrapRoomKey(
+          String remotePublicKeyB64, String roomName, String wrappedB64) =>
+      _pairwiseKey(remotePublicKeyB64, 'wrap|$roomName')
+          .then((k) => _openWith(k, wrappedB64))
+          .then(base64Encode);
+
+  /// Mesajı uçtan uca şifreler — sunucuda yalnızca bu blob saklanır.
+  Future<String> encryptMessage(
+          String remotePublicKeyB64, String pairContext, String text) =>
+      _pairwiseKey(remotePublicKeyB64, 'msg|$pairContext')
+          .then((k) => _sealWith(k, utf8.encode(text)));
+
+  Future<String> decryptMessage(
+          String remotePublicKeyB64, String pairContext, String sealedB64) =>
+      _pairwiseKey(remotePublicKeyB64, 'msg|$pairContext')
+          .then((k) => _openWith(k, sealedB64))
+          .then(utf8.decode);
 }
 
 final crypto = CryptoService();

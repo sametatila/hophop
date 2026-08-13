@@ -4,10 +4,16 @@ import 'package:livekit_client/livekit_client.dart';
 import '../effects/effect_painter.dart';
 import '../effects/fx_controller.dart';
 import '../models/models.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
+import '../services/call_manager.dart';
+import '../services/crypto_service.dart';
 import '../widgets/avatar.dart';
 
-/// Görüşme ekranı: uzak video (tam ekran) + yerel önizleme (köşe) +
-/// kontroller + efekt şeridi. Efekt overlay'leri hem yerelde hem uzakta çizilir.
+const int maxCallParticipants = 6;
+
+/// Görüşme ekranı: 1:1'de tam ekran, grupta ızgara düzeni.
+/// Davet (grup arama), efektler, kontroller — emojisiz, ikonlarla.
 class CallScreen extends StatefulWidget {
   final Room room;
   final UserProfile peer;
@@ -33,6 +39,7 @@ class _CallScreenState extends State<CallScreen> {
   bool _showEffects = false;
   Duration _elapsed = Duration.zero;
   Timer? _clock;
+  List<UserProfile> _friends = [];
 
   @override
   void initState() {
@@ -40,12 +47,21 @@ class _CallScreenState extends State<CallScreen> {
     _fx = FxController(room: widget.room, localPreviewKey: _localPreviewKey);
     _listener = widget.room.createListener()
       ..on<RoomDisconnectedEvent>((_) => _leave())
-      ..on<ParticipantDisconnectedEvent>((_) => _leave())
+      ..on<ParticipantDisconnectedEvent>((_) {
+        // Grup aramada biri ayrılınca ekran açık kalır; oda boşalınca kapanır.
+        if (widget.room.remoteParticipants.isEmpty) {
+          _leave();
+        } else {
+          setState(() {});
+        }
+      })
+      ..on<ParticipantConnectedEvent>((_) => setState(() {}))
       ..on<TrackSubscribedEvent>((_) => setState(() {}))
       ..on<TrackUnsubscribedEvent>((_) => setState(() {}));
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
     });
+    AuthService.cachedFriends().then((f) => _friends = f);
   }
 
   void _leave() {
@@ -64,24 +80,17 @@ class _CallScreenState extends State<CallScreen> {
     super.dispose();
   }
 
-  VideoTrack? get _remoteVideo {
-    for (final p in widget.room.remoteParticipants.values) {
-      for (final pub in p.videoTrackPublications) {
-        final track = pub.track;
-        if (track != null && !pub.muted) return track;
-      }
+  VideoTrack? _videoOf(Participant p) {
+    for (final pub in p.videoTrackPublications) {
+      final track = pub.track;
+      if (track != null && !pub.muted) return track as VideoTrack;
     }
     return null;
   }
 
   VideoTrack? get _localVideo {
     final lp = widget.room.localParticipant;
-    if (lp == null) return null;
-    for (final pub in lp.videoTrackPublications) {
-      final track = pub.track;
-      if (track != null && !pub.muted) return track;
-    }
-    return null;
+    return lp == null ? null : _videoOf(lp);
   }
 
   String get _timer {
@@ -90,10 +99,121 @@ class _CallScreenState extends State<CallScreen> {
     return '$m:$s';
   }
 
+  String get _title {
+    final remotes = widget.room.remoteParticipants.values;
+    if (remotes.length <= 1) return widget.peer.firstName;
+    return '${remotes.length + 1} kişi';
+  }
+
+  // ---- Davet (grup arama) ----
+
+  Future<void> _openInviteSheet() async {
+    final active = CallManager.activeCall;
+    if (active == null) return;
+    final inCallIds = {
+      ...widget.room.remoteParticipants.values.map((p) => p.identity),
+      auth.me?.id,
+    };
+    final candidates = _friends
+        .where((f) => !inCallIds.contains(f.id) && (f.publicKey ?? '').isNotEmpty)
+        .toList();
+    final slots =
+        maxCallParticipants - (widget.room.remoteParticipants.length + 1);
+
+    if (candidates.isEmpty || slots <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(slots <= 0
+              ? 'Arama dolu (en fazla $maxCallParticipants kişi)'
+              : 'Davet edilecek başka arkadaş yok')));
+      return;
+    }
+
+    final selected = <String>{};
+    final invited = await showModalBottomSheet<Set<String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.group_add),
+                    const SizedBox(width: 8),
+                    Text('Aramaya davet et ($slots kişilik yer var)',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final f in candidates)
+                      CheckboxListTile(
+                        value: selected.contains(f.id),
+                        onChanged: (v) => setSheetState(() {
+                          if (v == true) {
+                            if (selected.length < slots) selected.add(f.id);
+                          } else {
+                            selected.remove(f.id);
+                          }
+                        }),
+                        secondary: Avatar(user: f, radius: 20),
+                        title: Text(f.fullName),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: FilledButton.icon(
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () => Navigator.pop(context, selected),
+                  icon: const Icon(Icons.ring_volume),
+                  label: Text('Davet et (${selected.length})'),
+                  style:
+                      FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (invited == null || invited.isEmpty) return;
+    for (final id in invited) {
+      final friend = _friends.firstWhere((f) => f.id == id);
+      try {
+        final wrapped = await crypto.wrapRoomKey(
+            friend.publicKey!, 'call', active.roomKeyB64);
+        await api.inviteToCall(active.roomName, id, active.video, wrapped);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${friend.firstName} davet edilemedi')));
+        }
+      }
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${invited.length} kişi aranıyor — katıldıklarında görünecekler')));
+    }
+  }
+
+  // ---- Görünüm ----
+
   @override
   Widget build(BuildContext context) {
-    final remote = _remoteVideo;
+    final remotes = widget.room.remoteParticipants.values.toList()
+      ..sort((a, b) => a.identity.compareTo(b.identity));
     final local = _localVideo;
+
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -101,30 +221,17 @@ class _CallScreenState extends State<CallScreen> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // ---- Uzak video + karşı tarafın efekti ----
-            if (remote != null)
-              ValueListenableBuilder(
-                valueListenable: _fx.remoteFx,
-                builder: (context, remoteFrame, _) => CustomPaint(
-                  foregroundPainter: EffectPainter(remoteFrame),
-                  child: VideoTrackRenderer(remote),
-                ),
-              )
+            // ---- Uzak katılımcılar ----
+            if (remotes.isEmpty)
+              _connectingView()
+            else if (remotes.length == 1)
+              _remoteTile(remotes.first, fullscreen: true)
             else
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Avatar(user: widget.peer, radius: 64),
-                    const SizedBox(height: 16),
-                    Text(widget.peer.fullName,
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 24)),
-                    const SizedBox(height: 8),
-                    const Text('Bağlanıyor…',
-                        style: TextStyle(color: Colors.white54)),
-                  ],
-                ),
+              GridView.count(
+                crossAxisCount: 2,
+                childAspectRatio:
+                    MediaQuery.of(context).size.aspectRatio * (remotes.length <= 2 ? 0.5 : 1),
+                children: [for (final p in remotes) _remoteTile(p)],
               ),
 
             // ---- Üst bilgi ----
@@ -139,15 +246,21 @@ class _CallScreenState extends State<CallScreen> {
                     color: Colors.black45,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    '🔒 ${widget.peer.firstName} · $_timer',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock, color: Colors.greenAccent, size: 16),
+                      const SizedBox(width: 6),
+                      Text('$_title · $_timer',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14)),
+                    ],
                   ),
                 ),
               ),
             ),
 
-            // ---- Yerel önizleme (efekt yakalama için RepaintBoundary) ----
+            // ---- Yerel önizleme ----
             if (local != null && _camOn)
               SafeArea(
                 child: Align(
@@ -204,8 +317,7 @@ class _CallScreenState extends State<CallScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(e.emoji,
-                                      style: const TextStyle(fontSize: 28)),
+                                  EffectThumb(effectId: e.id, size: 36),
                                   Text(e.label,
                                       style: const TextStyle(
                                           color: Colors.white, fontSize: 11)),
@@ -249,23 +361,9 @@ class _CallScreenState extends State<CallScreen> {
                         },
                       ),
                       _controlButton(
-                        Icons.cameraswitch,
+                        Icons.person_add,
                         Colors.white24,
-                        () async {
-                          final track = _localVideo;
-                          if (track is LocalVideoTrack) {
-                            try {
-                              final options = track.currentOptions;
-                              if (options is CameraCaptureOptions) {
-                                await track.setCameraPosition(
-                                  options.cameraPosition == CameraPosition.front
-                                      ? CameraPosition.back
-                                      : CameraPosition.front,
-                                );
-                              }
-                            } catch (_) {}
-                          }
-                        },
+                        _openInviteSheet,
                       ),
                       _controlButton(
                         Icons.auto_awesome,
@@ -285,6 +383,65 @@ class _CallScreenState extends State<CallScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _connectingView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Avatar(user: widget.peer, radius: 64),
+          const SizedBox(height: 16),
+          Text(widget.peer.fullName,
+              style: const TextStyle(color: Colors.white, fontSize: 24)),
+          const SizedBox(height: 8),
+          const Text('Bağlanıyor…', style: TextStyle(color: Colors.white54)),
+        ],
+      ),
+    );
+  }
+
+  Widget _remoteTile(RemoteParticipant p, {bool fullscreen = false}) {
+    final video = _videoOf(p);
+    final friend = _friends.where((f) => f.id == p.identity).firstOrNull;
+    final content = video != null
+        ? ValueListenableBuilder(
+            valueListenable: _fx.remoteFx,
+            builder: (context, map, _) => CustomPaint(
+              foregroundPainter: EffectPainter(map[p.identity]),
+              child: VideoTrackRenderer(video),
+            ),
+          )
+        : Center(
+            child: friend != null
+                ? Avatar(user: friend, radius: fullscreen ? 64 : 36)
+                : CircleAvatar(
+                    radius: fullscreen ? 64 : 36,
+                    child: Text(p.name.isNotEmpty ? p.name[0] : '?')),
+          );
+    if (fullscreen) return content;
+    return Container(
+      margin: const EdgeInsets.all(2),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(borderRadius: BorderRadius.circular(8), child: content),
+          Positioned(
+            left: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(p.name.split(' ').first,
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ),
+          ),
+        ],
       ),
     );
   }

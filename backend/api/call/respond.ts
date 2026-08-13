@@ -16,19 +16,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const callerId = str(req.body?.callerId);
   const accept = req.body?.accept === true;
   if (!roomName || !callerId) return badRequest(res, 'roomName and callerId required');
-  if (!(await areFriends(userId, callerId))) {
-    return res.status(403).json({ error: 'not_friends' });
-  }
+
+  // Gecikme: arkadaşlık denetimi ve profil okumaları paralel yürür.
+  const [friends, meSnap, callerSnap] = await Promise.all([
+    areFriends(userId, callerId),
+    db().collection('users').doc(userId).get(),
+    db().collection('users').doc(callerId).get(),
+  ]);
+  if (!friends) return res.status(403).json({ error: 'not_friends' });
 
   if (!accept) {
     await pushToUser(callerId, { type: 'call_rejected', roomName });
     return res.status(200).json({ ok: true });
   }
-
-  const [meSnap, callerSnap] = await Promise.all([
-    db().collection('users').doc(userId).get(),
-    db().collection('users').doc(callerId).get(),
-  ]);
   const me = toPublicProfile(meSnap);
   const token = await roomToken(roomName, userId, `${me.firstName} ${me.lastName}`);
 

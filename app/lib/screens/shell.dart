@@ -5,6 +5,8 @@ import 'requests_screen.dart';
 import 'settings_screen.dart';
 
 /// Ana gezinme: Arkadaşlar / Kişiler / İstekler / Ayarlar.
+/// Ayarlar sekmesi kendi Navigator'ını taşır — Profil gibi alt sayfalar
+/// sekmenin İÇİNDE açılır, alt gezinme çubuğu kaybolmaz.
 class Shell extends StatefulWidget {
   const Shell({super.key});
 
@@ -14,17 +16,27 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> {
   int _index = 0;
+  final _settingsNav = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [
-          HomeScreen(),
-          ContactsScreen(),
-          RequestsScreen(),
-          SettingsScreen(),
+        children: [
+          const HomeScreen(),
+          const ContactsScreen(),
+          const RequestsScreen(),
+          NavigatorPopHandler(
+            onPopWithResult: (_) => _settingsNav.currentState?.maybePop(),
+            child: Navigator(
+              key: _settingsNav,
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (_) => const SettingsScreen(),
+                settings: settings,
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(

@@ -14,9 +14,10 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _StepDef {
-  final String emoji, title, body, button;
+  final IconData icon;
+  final String title, body, button;
   final Future<void> Function() action;
-  _StepDef(this.emoji, this.title, this.body, this.button, this.action);
+  _StepDef(this.icon, this.title, this.body, this.button, this.action);
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
@@ -34,14 +35,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() {
       _steps = [
         _StepDef(
-          '🔔',
+          Icons.notifications_active,
           'Bildirimlere izin ver',
           'Seni arayanları duyabilmen için HopHop\'un zil çalması gerekiyor.',
           'İzin ver',
           () async => Permission.notification.request(),
         ),
         _StepDef(
-          '📷',
+          Icons.photo_camera,
           'Kamera ve mikrofon',
           'Görüntülü konuşabilmek için kameranı ve sesini kullanacağız.',
           'İzin ver',
@@ -52,7 +53,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         if (aggressive)
           _StepDef(
-            '🔋',
+            Icons.battery_saver,
             'Pil ayarı (önemli!)',
             'Bu telefonun markası, uygulamaları arka planda uyutabiliyor. '
                 'Aramaları kaçırmamak için HopHop\'u pil optimizasyonundan çıkar. '
@@ -95,7 +96,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(step.emoji, style: const TextStyle(fontSize: 88)),
+                  Icon(step.icon,
+                      size: 96, color: theme.colorScheme.primary),
                   const SizedBox(height: 24),
                   Text(step.title,
                       style: theme.textTheme.headlineMedium

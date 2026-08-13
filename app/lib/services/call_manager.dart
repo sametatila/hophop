@@ -12,12 +12,21 @@ import 'crypto_service.dart';
 import 'fcm_service.dart';
 import 'notification_service.dart';
 
+/// Süren aramanın bilgisi — davet akışı (grup arama) buradan beslenir.
+class ActiveCall {
+  final String roomName;
+  final String roomKeyB64;
+  final bool video;
+  ActiveCall({required this.roomName, required this.roomKeyB64, required this.video});
+}
+
 /// Arama durum makinesi: giden arama (çaldır → kabul/red/zaman aşımı),
 /// gelen arama (bildirimden ya da uygulama içinden cevapla/reddet), oda kurulumu.
 class CallManager {
   static final navigatorKey = GlobalKey<NavigatorState>();
   static StreamSubscription? _sub;
   static bool _inCall = false;
+  static ActiveCall? activeCall;
 
   static void init() {
     _sub?.cancel();
@@ -64,20 +73,35 @@ class CallManager {
     final nav = _nav;
     if (nav == null) return;
 
+    final publicKey = friend.publicKey;
+    if (publicKey == null || publicKey.isEmpty) {
+      _toast('${friend.firstName} henüz hiç giriş yapmamış');
+      return;
+    }
+
     late final ({
       String roomName,
       String livekitToken,
       String livekitUrl,
       String? calleePublicKey
     }) r;
+    // Oda anahtarını BİZ üretiriz; karşıya yalnızca ona özel sarılmış hali gider.
+    final roomKey = crypto.generateRoomKey();
     try {
-      r = await api.initiateCall(friend.id, video);
+      // Oda adı sunucudan geldiği için sarma işlemi iki adımda yapılır:
+      // önce oda adı alınır, sonra davet mantığıyla aynı sarmayla push gider.
+      // initiate, roomKeyEnc'i pushta iletir; sarmak için oda adı gerektiğinden
+      // sunucu, roomName'i yanıtta döner ve push'u sarılmış anahtar olmadan
+      // atamaz — bu yüzden roomName'den bağımsız sarma bağlamı kullanıyoruz.
+      final wrapped = await crypto.wrapRoomKey(publicKey, 'call', roomKey);
+      r = await api.initiateCall(friend.id, video, wrapped);
     } on ApiException {
       _toast('Arama başlatılamadı — bağlantını kontrol et');
       return;
     }
 
     var settled = false; // kabul, red veya iptal gerçekleşti mi
+    final status = ValueNotifier<String>('ringing');
     StreamSubscription? sub;
     Timer? timeout;
 
@@ -92,20 +116,15 @@ class CallManager {
       if (data['type'] == 'call_accepted' && !settled) {
         settled = true;
         cleanup();
-        final publicKey = r.calleePublicKey ?? friend.publicKey;
-        if (publicKey == null || publicKey.isEmpty) {
-          _popIfCurrent<OutgoingCallScreen>();
-          _toast('Karşı taraf henüz hiç giriş yapmamış');
-          return;
-        }
-        final key = await crypto.deriveRoomKey(publicKey, r.roomName);
+        status.value = 'connecting'; // "Aranıyor" → "Bağlanıyor"
         await _joinRoom(
           url: r.livekitUrl,
           token: r.livekitToken,
-          sharedKey: key,
+          sharedKey: roomKey,
           video: video,
           peer: friend,
           replaceCurrent: true,
+          roomName: r.roomName,
         );
       } else if (data['type'] == 'call_rejected' && !settled) {
         settled = true;
@@ -128,6 +147,7 @@ class CallManager {
       builder: (_) => OutgoingCallScreen(
         friend: friend,
         video: video,
+        status: status,
         onCancel: () async {
           if (settled) return;
           settled = true;
@@ -143,15 +163,18 @@ class CallManager {
 
   // ---- Gelen arama ----
 
-  static Future<void> answerIncoming(IncomingCall call) async {
+  /// Aramaya katılır. IncomingCallScreen açıksa görüşme ekranı ONUN YERİNE
+  /// gelir (arada ana ekran görünmez). Başarısız olursa false döner.
+  static Future<bool> answerIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
     try {
       final r = await api.respondCall(call.roomName, call.callerId, true);
-      if (call.callerPublicKey.isEmpty) {
+      if (call.callerPublicKey.isEmpty || call.roomKeyEnc.isEmpty) {
         _toast('Arayanın anahtarı eksik — arama kurulamadı');
-        return;
+        return false;
       }
-      final key = await crypto.deriveRoomKey(call.callerPublicKey, call.roomName);
+      final key = await crypto.unwrapRoomKey(
+          call.callerPublicKey, 'call', call.roomKeyEnc);
       final friends = await AuthService.cachedFriends();
       final peer = friends.where((f) => f.id == call.callerId).firstOrNull ??
           UserProfile(
@@ -160,16 +183,19 @@ class CallManager {
             lastName: '',
             friendStatus: 'friend',
           );
-      await _joinRoom(
+      return await _joinRoom(
         url: r.livekitUrl,
         token: r.livekitToken,
         sharedKey: key,
         video: call.video,
         peer: peer,
-        replaceCurrent: false,
+        replaceCurrent: true,
+        roomName: call.roomName,
       );
-    } on ApiException {
+    } catch (e, st) {
+      debugPrint('HopHop: aramaya katılınamadı: $e\n$st');
       _toast('Aramaya katılınamadı');
+      return false;
     }
   }
 
@@ -182,17 +208,19 @@ class CallManager {
 
   // ---- Oda ----
 
-  static Future<void> _joinRoom({
+  static Future<bool> _joinRoom({
     required String url,
     required String token,
     required String sharedKey,
     required bool video,
     required UserProfile peer,
     required bool replaceCurrent,
+    required String roomName,
   }) async {
     final nav = _nav;
-    if (nav == null) return;
+    if (nav == null) return false;
     _inCall = true;
+    activeCall = ActiveCall(roomName: roomName, roomKeyB64: sharedKey, video: video);
     try {
       final room = await CallService.connect(
         url: url,
@@ -209,11 +237,14 @@ class CallManager {
       } else {
         await nav.push(route);
       }
-    } catch (_) {
+      return true;
+    } catch (e, st) {
+      debugPrint('HopHop: oda kurulamadı: $e\n$st');
       _toast('Görüşme kurulamadı');
-      if (replaceCurrent && nav.canPop()) nav.pop();
+      return false;
     } finally {
       _inCall = false;
+      activeCall = null;
     }
   }
 }
