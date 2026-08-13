@@ -55,7 +55,7 @@ class CallManager {
         _popIfCurrent<IncomingCallScreen>();
       case 'call_rejected':
         _popIfCurrent<OutgoingCallScreen>();
-        _toast('Cevaplamadı 😔');
+        _toast('Cevaplamadı');
     }
   }
 
@@ -144,10 +144,10 @@ class CallManager {
       settled = true;
       cleanup();
       try {
-        await api.cancelCall(r.roomName, friend.id);
+        await api.cancelCall(r.roomName, friend.id, video);
       } catch (_) {}
       _popIfCurrent<OutgoingCallScreen>();
-      _toast('Cevaplamadı 😔');
+      _toast('Cevaplamadı');
     });
 
     await nav.push(MaterialPageRoute(
@@ -160,7 +160,7 @@ class CallManager {
           settled = true;
           cleanup();
           try {
-            await api.cancelCall(r.roomName, friend.id);
+            await api.cancelCall(r.roomName, friend.id, video);
           } catch (_) {}
         },
       ),
@@ -175,7 +175,7 @@ class CallManager {
   static Future<bool> answerIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
     try {
-      final r = await api.respondCall(call.roomName, call.callerId, true);
+      final r = await api.respondCall(call.roomName, call.callerId, true, call.video);
       if (call.callerPublicKey.isEmpty || call.roomKeyEnc.isEmpty) {
         _toast('Arayanın anahtarı eksik — arama kurulamadı');
         return false;
@@ -209,7 +209,7 @@ class CallManager {
   static Future<void> rejectIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
     try {
-      await api.respondCall(call.roomName, call.callerId, false);
+      await api.respondCall(call.roomName, call.callerId, false, call.video);
     } catch (_) {}
   }
 

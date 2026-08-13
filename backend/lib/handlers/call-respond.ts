@@ -1,10 +1,38 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { db } from '../firebase.js';
 import { requireAuth } from '../auth.js';
-import { areFriends, toPublicProfile } from '../users.js';
+import { areFriends, pairId, toPublicProfile } from '../users.js';
 import { pushToUser } from '../fcm.js';
 import { roomToken, livekitUrl } from '../livekit.js';
 import { requireMethod, badRequest, str } from '../http.js';
+
+/** Arama olayını sohbet akışına yazar (WhatsApp'taki arama kayıtları gibi).
+ * roomName'den türeyen kimlikle idempotent — aynı arama iki kez kaydolmaz. */
+export async function logCallEvent(opts: {
+  callerId: string;
+  calleeId: string;
+  video: boolean;
+  outcome: 'answered' | 'missed';
+}): Promise<void> {
+  const { callerId, calleeId, video, outcome } = opts;
+  try {
+    await db()
+      .collection('messages')
+      .doc(pairId(callerId, calleeId))
+      .collection('msgs')
+      .add({
+        kind: 'call',
+        fromUserId: callerId,
+        toUserId: calleeId,
+        callType: video ? 'video' : 'audio',
+        outcome,
+        ciphertext: '',
+        sentAtMs: Date.now(),
+      });
+  } catch (e) {
+    console.error('call event log failed:', e);
+  }
+}
 
 /** POST /api/call/respond { roomName, callerId, accept: boolean } */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -15,6 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const roomName = str(req.body?.roomName);
   const callerId = str(req.body?.callerId);
   const accept = req.body?.accept === true;
+  const video = req.body?.video === true;
   if (!roomName || !callerId) return badRequest(res, 'roomName and callerId required');
 
   // Gecikme: arkadaşlık denetimi ve profil okumaları paralel yürür.
@@ -26,9 +55,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!friends) return res.status(403).json({ error: 'not_friends' });
 
   if (!accept) {
-    await pushToUser(callerId, { type: 'call_rejected', roomName });
+    await Promise.all([
+      pushToUser(callerId, { type: 'call_rejected', roomName }),
+      logCallEvent({ callerId, calleeId: userId, video, outcome: 'missed' }),
+    ]);
     return res.status(200).json({ ok: true });
   }
+
+  await logCallEvent({ callerId, calleeId: userId, video, outcome: 'answered' });
   const me = toPublicProfile(meSnap);
   const token = await roomToken(roomName, userId, `${me.firstName} ${me.lastName}`);
 

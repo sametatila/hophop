@@ -44,9 +44,10 @@ class _ShellState extends State<Shell> {
         listenable:
             Listenable.merge([ActivityStore.unread, ActivityStore.missed]),
         builder: (context, _) {
-          final total = ActivityStore.unread.value.values
-                  .fold(0, (a, b) => a + b) +
-              ActivityStore.missed.value.values.fold(0, (a, b) => a + b);
+          // Cevapsız aramalar da sohbet akışına düştüğü için sunucu tarafı
+          // okunmamış sayısına zaten dahil — çift saymamak için yalnız unread.
+          final total =
+              ActivityStore.unread.value.values.fold(0, (a, b) => a + b);
           return NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (i) => setState(() => _index = i),

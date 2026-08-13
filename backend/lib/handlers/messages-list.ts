@@ -48,6 +48,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     deliveredAtMs:
       d.get('deliveredAtMs') ??
       (d.get('toUserId') === userId ? now : null),
+    // Arama kaydı öğeleri (WhatsApp'taki gibi sohbet akışında görünür)
+    kind: d.get('kind') ?? 'msg',
+    callType: d.get('callType') ?? null,
+    outcome: d.get('outcome') ?? null,
   }));
 
   return res.status(200).json({ messages });

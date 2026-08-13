@@ -57,6 +57,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 text: m['text'] as String,
                 sentAtMs: (m['at'] as num).toInt(),
                 deliveredAtMs: (m['dlv'] as num?)?.toInt(),
+                kind: (m['k'] as String?) ?? 'msg',
+                callType: m['ct'] as String?,
+                outcome: m['o'] as String?,
               ))
           .toList();
       if (cached.isNotEmpty && mounted && _messages.isEmpty) {
@@ -80,6 +83,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 'text': m.text,
                 'at': m.sentAtMs,
                 'dlv': m.deliveredAtMs,
+                'k': m.kind,
+                'ct': m.callType,
+                'o': m.outcome,
               })
           .toList();
       await f.writeAsString(jsonEncode(data));
@@ -144,15 +150,18 @@ class _ChatScreenState extends State<ChatScreen> {
       final raw = await api.listMessages(widget.friend.id);
       final server = <ChatMessage>[];
       for (final m in raw) {
-        var text = _decryptCache[m.id];
-        if (text == null) {
-          try {
-            text = await crypto.decryptMessage(
-                publicKey, _pairContext, m.ciphertext);
-          } catch (_) {
-            text = '(çözülemedi)';
+        String text = '';
+        if (m.kind == 'msg') {
+          text = _decryptCache[m.id] ?? '';
+          if (text.isEmpty) {
+            try {
+              text = await crypto.decryptMessage(
+                  publicKey, _pairContext, m.ciphertext);
+            } catch (_) {
+              text = '(çözülemedi)';
+            }
+            _decryptCache[m.id] = text;
           }
-          _decryptCache[m.id] = text;
         }
         server.add(ChatMessage(
           id: m.id,
@@ -160,6 +169,9 @@ class _ChatScreenState extends State<ChatScreen> {
           text: text,
           sentAtMs: m.sentAtMs,
           deliveredAtMs: m.deliveredAtMs,
+          kind: m.kind,
+          callType: m.callType,
+          outcome: m.outcome,
         ));
         if (m.sentAtMs > _lastMs) _lastMs = m.sentAtMs;
       }
@@ -185,6 +197,61 @@ class _ChatScreenState extends State<ChatScreen> {
       // çevrimdışı — önbellek/iskelet yerinde kalır, döngü tekrar dener
       if (mounted && _messages.isNotEmpty) setState(() => _loading = false);
     }
+  }
+
+  /// Sohbet akışındaki arama kaydı öğesi (WhatsApp'taki gibi):
+  /// cevaplanan → "Sesli/Görüntülü arama"; cevapsız → kırmızı "Cevapsız …".
+  Widget _callItem(ChatMessage m, bool mine, ThemeData theme) {
+    final video = m.callType == 'video';
+    final missed = m.outcome == 'missed';
+    final label = missed
+        ? (mine
+            ? 'Cevapsız ${video ? 'görüntülü' : 'sesli'} arama'
+            : 'Cevapsız ${video ? 'görüntülü' : 'sesli'} arama')
+        : '${video ? 'Görüntülü' : 'Sesli'} arama';
+    final icon = missed
+        ? Icons.phone_missed
+        : video
+            ? Icons.videocam
+            : Icons.call;
+    final color = missed ? theme.colorScheme.error : theme.colorScheme.outline;
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(14),
+          border: missed
+              ? Border.all(
+                  color: theme.colorScheme.error.withValues(alpha: 0.3))
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(width: 8),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: missed
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(width: 8),
+            Text(
+              DateFormat('HH:mm')
+                  .format(DateTime.fromMillisecondsSinceEpoch(m.sentAtMs)),
+              style:
+                  TextStyle(fontSize: 11, color: theme.colorScheme.outline),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Yüklenirken gösterilen nabızlı iskelet baloncuklar.
@@ -338,6 +405,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, i) {
                       final m = _messages[i];
                       final mine = m.fromUserId == myId;
+                      if (m.isCall) return _callItem(m, mine, theme);
                       return Align(
                         alignment:
                             mine ? Alignment.centerRight : Alignment.centerLeft,

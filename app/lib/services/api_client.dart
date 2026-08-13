@@ -134,9 +134,14 @@ class ApiClient {
   }
 
   Future<({String livekitToken, String livekitUrl, String? callerPublicKey})>
-      respondCall(String roomName, String callerId, bool accept) async {
-    final r = await _request('POST', '/api/call/respond',
-        {'roomName': roomName, 'callerId': callerId, 'accept': accept});
+      respondCall(
+          String roomName, String callerId, bool accept, bool video) async {
+    final r = await _request('POST', '/api/call/respond', {
+      'roomName': roomName,
+      'callerId': callerId,
+      'accept': accept,
+      'video': video,
+    });
     if (!accept) {
       return (livekitToken: '', livekitUrl: '', callerPublicKey: null);
     }
@@ -147,8 +152,9 @@ class ApiClient {
     );
   }
 
-  Future<void> cancelCall(String roomName, String calleeId) => _request(
-      'POST', '/api/call/cancel', {'roomName': roomName, 'calleeId': calleeId});
+  Future<void> cancelCall(String roomName, String calleeId, bool video) =>
+      _request('POST', '/api/call/cancel',
+          {'roomName': roomName, 'calleeId': calleeId, 'video': video});
 
   /// Süren aramaya davet (grup arama, en fazla 6 kişi).
   Future<void> inviteToCall(
@@ -181,7 +187,10 @@ class ApiClient {
             String fromUserId,
             String ciphertext,
             int sentAtMs,
-            int? deliveredAtMs
+            int? deliveredAtMs,
+            String kind,
+            String? callType,
+            String? outcome
           })>> listMessages(String withUserId, {int afterMs = 0}) async {
     final r = await _request(
         'GET', '/api/messages/list?withUserId=$withUserId&afterMs=$afterMs');
@@ -189,9 +198,12 @@ class ApiClient {
         .map((m) => (
               id: m['id'] as String,
               fromUserId: m['fromUserId'] as String,
-              ciphertext: m['ciphertext'] as String,
+              ciphertext: (m['ciphertext'] as String?) ?? '',
               sentAtMs: (m['sentAtMs'] as num).toInt(),
               deliveredAtMs: (m['deliveredAtMs'] as num?)?.toInt(),
+              kind: (m['kind'] as String?) ?? 'msg',
+              callType: m['callType'] as String?,
+              outcome: m['outcome'] as String?,
             ))
         .toList();
   }

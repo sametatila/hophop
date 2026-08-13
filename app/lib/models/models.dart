@@ -128,6 +128,11 @@ class ChatMessage {
   /// true → gönderim başarısız; dokununca aynı kimlikle yeniden denenir.
   bool failed;
 
+  /// 'msg' → normal mesaj; 'call' → sohbet akışındaki arama kaydı.
+  final String kind;
+  final String? callType; // audio | video
+  final String? outcome; // answered | missed
+
   ChatMessage({
     required this.id,
     required this.fromUserId,
@@ -136,5 +141,10 @@ class ChatMessage {
     this.deliveredAtMs,
     this.pending = false,
     this.failed = false,
+    this.kind = 'msg',
+    this.callType,
+    this.outcome,
   });
+
+  bool get isCall => kind == 'call';
 }
