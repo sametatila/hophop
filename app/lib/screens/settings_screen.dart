@@ -1,0 +1,148 @@
+import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/auth_service.dart';
+import '../services/permission_service.dart';
+import '../widgets/avatar.dart';
+import 'login_screen.dart';
+import 'profile_screen.dart';
+
+/// Ayarlar: profil, izin durumu (✅/❌ + tek dokunuş Düzelt), çıkış.
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  Map<Permission, PermissionStatus> _statuses = {};
+  bool _aggressiveOem = false;
+
+  static final _labels = {
+    Permission.notification: ('🔔', 'Bildirimler', 'Gelen aramaların çalması için'),
+    Permission.camera: ('📷', 'Kamera', 'Görüntülü arama için'),
+    Permission.microphone: ('🎤', 'Mikrofon', 'Sesin karşıya gitmesi için'),
+    Permission.ignoreBatteryOptimizations: (
+      '🔋',
+      'Pil optimizasyonu muafiyeti',
+      'Arka planda arama kaçırmamak için'
+    ),
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final statuses = await PermissionService.statuses();
+    final aggressive = await PermissionService.isAggressiveOem();
+    if (mounted) {
+      setState(() {
+        _statuses = statuses;
+        _aggressiveOem = aggressive;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final me = auth.me;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Ayarlar')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (me != null)
+            Card(
+              child: ListTile(
+                leading: Avatar(user: me),
+                title: Text(me.fullName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Profilim — fotoğrafını değiştir'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                  setState(() {});
+                },
+              ),
+            ),
+          const SizedBox(height: 16),
+          const Text('İzin durumu',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ..._statuses.entries
+              .where((e) =>
+                  e.key != Permission.ignoreBatteryOptimizations ||
+                  _aggressiveOem)
+              .map((e) {
+            final (emoji, title, why) = _labels[e.key]!;
+            final ok = e.value.isGranted;
+            return Card(
+              child: ListTile(
+                leading: Text(emoji, style: const TextStyle(fontSize: 28)),
+                title: Text(title),
+                subtitle: Text(why),
+                trailing: ok
+                    ? const Icon(Icons.check_circle, color: Colors.green, size: 32)
+                    : FilledButton(
+                        onPressed: () async {
+                          await PermissionService.fix(e.key);
+                          await _refresh();
+                        },
+                        child: const Text('Düzelt'),
+                      ),
+              ),
+            );
+          }),
+          const SizedBox(height: 24),
+          Card(
+            color: Colors.blue.shade50,
+            child: const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                '🔒 Gizlilik: Görüşmelerin uçtan uca şifrelidir. '
+                'Ne sunucular ne de uygulamayı kuran kişi görüşmelerini izleyebilir veya dinleyebilir.',
+                style: TextStyle(fontSize: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.logout),
+            label: const Text('Çıkış yap'),
+            onPressed: () async {
+              final sure = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Çıkış yapılsın mı?'),
+                  content: const Text(
+                      'Tekrar girmek için ad, soyad ve doğum tarihi gerekir.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Vazgeç')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Çıkış yap')),
+                  ],
+                ),
+              );
+              if (sure == true && context.mounted) {
+                await auth.logout();
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (_) => false,
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}

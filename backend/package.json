@@ -1,0 +1,21 @@
+{
+  "name": "hophop-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "add-user": "node scripts/add-user.mjs",
+    "list-users": "node scripts/list-users.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "jose": "^5.9.6",
+    "livekit-server-sdk": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vercel/node": "^5.0.0",
+    "typescript": "^5.7.0"
+  }
+}

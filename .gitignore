@@ -1,0 +1,34 @@
+# ---- Gizli değerler — ASLA commitlenmez ----
+.env
+.env.*
+!.env.example
+*service-account*.json
+
+# Firebase istemci yapılandırması (API anahtarı içerir; yerelde tutulur,
+# gerekirse `node backend/scripts/fetch-google-services.mjs` ile yeniden indirilir)
+app/android/app/google-services.json
+
+# ---- Node / backend ----
+node_modules/
+.vercel/
+*.log
+
+# ---- Flutter / app ----
+app/.dart_tool/
+app/build/
+app/.flutter-plugins*
+app/.metadata
+app/.pubspec.backup.yaml
+
+# ---- Android üretilen dosyalar ----
+app/android/.gradle/
+app/android/local.properties
+app/android/**/*.keystore
+app/android/**/*.jks
+app/android/app/.cxx/
+
+# ---- IDE / OS ----
+.idea/
+*.iml
+.vscode/
+.DS_Store
