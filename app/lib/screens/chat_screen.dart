@@ -85,7 +85,14 @@ class _ChatScreenState extends State<ChatScreen> {
         ));
         if (m.sentAtMs > _lastMs) _lastMs = m.sentAtMs;
       }
-      final pendings = _messages.where((m) => m.pending).toList();
+      // İyimser kopyalar: sunucu kopyası gelmişse (idempotent kimlik eşleşir)
+      // ya da bir yarış sonucu sahipsiz kaldıysa listeden düşer — çift mesaj olmaz.
+      final serverIds = server.map((m) => m.id).toSet();
+      final myId = auth.me?.id ?? '';
+      final pendings = _messages
+          .where((m) =>
+              m.pending && !serverIds.contains('c_${myId}_${m.id}'))
+          .toList();
       _messages
         ..clear()
         ..addAll(server)
@@ -109,34 +116,43 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    final publicKey = widget.friend.publicKey;
-    if (text.isEmpty || publicKey == null || _sending) return;
+    if (text.isEmpty || widget.friend.publicKey == null || _sending) return;
     _input.clear();
     // İyimser gösterim: mesaj anında baloncuk olur (saat simgesiyle).
+    // id = istemci kimliği: tekrar denemeler sunucuda ÇİFT KAYIT oluşturmaz.
     final optimistic = ChatMessage(
-      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      id: 'm${DateTime.now().microsecondsSinceEpoch}',
       fromUserId: auth.me!.id,
       text: text,
       sentAtMs: DateTime.now().millisecondsSinceEpoch,
       pending: true,
     );
+    setState(() => _messages.add(optimistic));
+    _scrollToEnd();
+    await _transmit(optimistic);
+  }
+
+  Future<void> _transmit(ChatMessage msg) async {
+    final publicKey = widget.friend.publicKey;
+    if (publicKey == null || _sending) return;
     setState(() {
       _sending = true;
-      _messages.add(optimistic);
+      msg
+        ..failed = false
+        ..pending = true;
     });
-    _scrollToEnd();
     try {
-      final sealed = await crypto.encryptMessage(publicKey, _pairContext, text);
-      await api.sendMessage(widget.friend.id, sealed);
-      _messages.remove(optimistic); // sunucu kopyası _load ile gelir (✓)
+      final sealed =
+          await crypto.encryptMessage(publicKey, _pairContext, msg.text);
+      await api.sendMessage(widget.friend.id, sealed, msg.id);
+      _messages.remove(msg); // sunucu kopyası _load ile gelir (✓)
       ActivityStore.bumpActivity(widget.friend.id);
       await _load();
     } catch (_) {
       if (mounted) {
-        setState(() => _messages.remove(optimistic));
-        _input.text = text; // kaybolmasın
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Mesaj gönderilemedi')));
+        setState(() => msg.failed = true); // baloncukta kalır, dokununca dener
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Gönderilemedi — mesaja dokunup tekrar dene')));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -194,7 +210,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       return Align(
                         alignment:
                             mine ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
+                        child: GestureDetector(
+                          onTap:
+                              m.failed ? () => _transmit(m) : null,
+                          child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 3),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
@@ -235,23 +254,28 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                   if (mine) ...[
                                     const SizedBox(width: 4),
-                                    // saat: gönderiliyor · ✓ sunucuda · ✓✓ karşı cihazda
+                                    // ! hata · saat gönderiliyor · ✓ sunucuda · ✓✓ iletildi
                                     Icon(
-                                      m.pending
-                                          ? Icons.schedule
-                                          : (m.deliveredAtMs != null
-                                              ? Icons.done_all
-                                              : Icons.done),
+                                      m.failed
+                                          ? Icons.error_outline
+                                          : m.pending
+                                              ? Icons.schedule
+                                              : (m.deliveredAtMs != null
+                                                  ? Icons.done_all
+                                                  : Icons.done),
                                       size: 14,
-                                      color: m.deliveredAtMs != null
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.outline,
+                                      color: m.failed
+                                          ? theme.colorScheme.error
+                                          : m.deliveredAtMs != null
+                                              ? theme.colorScheme.primary
+                                              : theme.colorScheme.outline,
                                     ),
                                   ],
                                 ],
                               ),
                             ],
                           ),
+                        ),
                         ),
                       );
                     },

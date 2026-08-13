@@ -125,6 +125,9 @@ class ChatMessage {
   /// true → henüz sunucuya gitmedi (iyimser gösterim, saat simgesi).
   bool pending;
 
+  /// true → gönderim başarısız; dokununca aynı kimlikle yeniden denenir.
+  bool failed;
+
   ChatMessage({
     required this.id,
     required this.fromUserId,
@@ -132,5 +135,6 @@ class ChatMessage {
     required this.sentAtMs,
     this.deliveredAtMs,
     this.pending = false,
+    this.failed = false,
   });
 }

@@ -162,9 +162,15 @@ class ApiClient {
 
   // ---- Mesajlaşma (uçtan uca şifreli) ----
 
-  Future<String> sendMessage(String toUserId, String ciphertext) async {
-    final r = await _request('POST', '/api/messages/send',
-        {'toUserId': toUserId, 'ciphertext': ciphertext});
+  /// clientId: aynı mesajın tekrar denemesinde çift kayıt oluşmasın diye
+  /// istemcide üretilen benzersiz kimlik (idempotent gönderim).
+  Future<String> sendMessage(
+      String toUserId, String ciphertext, String clientId) async {
+    final r = await _request('POST', '/api/messages/send', {
+      'toUserId': toUserId,
+      'ciphertext': ciphertext,
+      'clientId': clientId,
+    });
     return r['messageId'] as String;
   }
 
