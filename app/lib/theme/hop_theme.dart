@@ -61,9 +61,12 @@ ThemeData hopTheme(HopMode mode) {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      toolbarHeight: kid ? 72 : 64,
-      titleTextStyle: (kid ? text.headlineMedium : text.headlineSmall)
-          ?.copyWith(fontWeight: FontWeight.w800),
+      toolbarHeight: kid ? 68 : 62,
+      // DİKKAT: ham textTheme'de fontSize null olabildiği için boyut açıkça verilir.
+      titleTextStyle: text.headlineMedium?.copyWith(
+        fontSize: kid ? 26 : 23,
+        fontWeight: FontWeight.w800,
+      ),
       iconTheme: IconThemeData(color: scheme.onSurface),
     ),
     cardTheme: CardThemeData(

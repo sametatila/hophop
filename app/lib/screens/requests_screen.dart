@@ -97,11 +97,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       child: Text('Bekleyen istek yok'),
                     ),
                   ..._incoming.map((e) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Card(
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 6),
+                                horizontal: 16, vertical: 2),
                             leading: e.user != null
                                 ? Avatar(user: e.user!, radius: 26)
                                 : null,
@@ -153,11 +153,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       child: Text('Bekleyen istek yok'),
                     ),
                   ..._outgoing.map((e) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Card(
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 6),
+                                horizontal: 16, vertical: 2),
                             leading: e.user != null
                                 ? Avatar(user: e.user!, radius: 26)
                                 : null,

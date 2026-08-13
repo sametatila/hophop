@@ -100,11 +100,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final (icon, title, why) = _labels[e.key]!;
             final ok = e.value.isGranted;
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Card(
               child: ListTile(
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                 leading: Icon(icon, size: 30),
                 title: Text(title),
                 subtitle: Text(why),

@@ -80,12 +80,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     itemBuilder: (context, i) {
                       final u = _users[i];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Card(
                           child: ListTile(
                             contentPadding: EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: Hop.isKid ? 8 : 4),
+                                vertical: Hop.isKid ? 4 : 0),
                             leading: Avatar(user: u, radius: Hop.isKid ? 28 : 24),
                             title: Text(u.fullName,
                                 style: const TextStyle(
