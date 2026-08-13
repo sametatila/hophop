@@ -11,6 +11,7 @@ import 'screens/shell.dart';
 import 'services/activity_store.dart';
 import 'services/auth_service.dart';
 import 'services/bootstrap.dart';
+import 'services/ring_listener.dart';
 import 'theme/hop_theme.dart';
 import 'services/call_manager.dart';
 import 'services/fcm_service.dart';
@@ -83,9 +84,11 @@ class _HopHopAppState extends State<HopHopApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Öne gelir gelmez: bekleyen arama var mı (anında çaldır) + rozetleri tazele.
+      // Öne gelir gelmez: bekleyen arama var mı (anında çaldır) + rozetleri
+      // tazele + dinleyici koptaysa yeniden kur.
       CallManager.checkPendingRing();
       ActivityStore.refresh();
+      RingListener.start();
     }
   }
 

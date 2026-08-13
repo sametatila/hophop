@@ -15,10 +15,14 @@ import 'call_manager.dart';
 /// (okuma yalnızca değişiklikte), gecikme ~anlık.
 class RingListener {
   static StreamSubscription? _sub;
+  static Timer? _retry;
+  static bool _active = false;
 
+  /// İdempotent: kuruluysa dokunmaz; kurulamazsa 60 sn'de bir yeniden dener
+  /// (ör. Firebase Auth henüz etkinleştirilmemişse ya da ağ yoksa).
   static Future<void> start() async {
     final me = auth.me;
-    if (me == null) return;
+    if (me == null || _active) return;
     try {
       // Firebase oturumu kalıcıdır; yoksa sunucudan özel token alıp açılır.
       if (FirebaseAuth.instance.currentUser?.uid != me.id) {
@@ -37,9 +41,22 @@ class RingListener {
         if (DateTime.now().millisecondsSinceEpoch - atMs > 45000) return;
         final call = IncomingCall.fromData(Map<String, dynamic>.from(data));
         CallManager.handleRing(call);
-      }, onError: (e) => debugPrint('HopHop ring listener: $e'));
+      }, onError: (e) {
+        debugPrint('HopHop ring listener: $e');
+        _active = false;
+        _scheduleRetry();
+      });
+      _active = true;
+      _retry?.cancel();
+      debugPrint('HopHop ring listener aktif');
     } catch (e) {
-      debugPrint('HopHop ring listener kurulamadı: $e');
+      debugPrint('HopHop ring listener kurulamadı (tekrar denenecek): $e');
+      _scheduleRetry();
     }
+  }
+
+  static void _scheduleRetry() {
+    _retry?.cancel();
+    _retry = Timer(const Duration(seconds: 60), start);
   }
 }
