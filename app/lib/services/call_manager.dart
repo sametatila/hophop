@@ -12,6 +12,7 @@ import 'call_service.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
 import 'notification_service.dart';
+import 'ringtone_player.dart';
 
 /// Süren aramanın bilgisi — davet akışı (grup arama) buradan beslenir.
 class ActiveCall {
@@ -40,10 +41,20 @@ class CallManager {
 
   /// Gerçek-zamanlı dinleyiciden ya da yoklamadan gelen aramayı çaldırır.
   /// Oda adına göre çift-çalma koruması içerir.
+  ///
+  /// WhatsApp davranışı: uygulama ÖN PLANDAYSA arama ekranı zaten görünür —
+  /// üstten bildirim şeridi ÇIKMAZ, zili uygulama kendisi çalar. Uygulama
+  /// arka plandaysa bildirim (zil sesli + tam ekran intent) devrede kalır.
   static Future<void> handleRing(IncomingCall ring) async {
     if (_inCall || ring.roomName == _ringingRoom) return;
     _ringingRoom = ring.roomName;
-    await NotificationService.showIncomingCall(ring); // zil + bildirim
+    final foreground =
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    if (foreground) {
+      RingtonePlayer.start();
+    } else {
+      await NotificationService.showIncomingCall(ring);
+    }
     _nav?.push(MaterialPageRoute(
       builder: (_) => IncomingCallScreen(call: ring),
       fullscreenDialog: true,
@@ -65,16 +76,11 @@ class CallManager {
     final data = Map<String, dynamic>.from(message.data as Map);
     switch (data['type']) {
       case 'incoming_call':
-        if (_inCall) return; // meşgul — bildirim zaten gösterildi, kendi kendine düşer
-        final call = IncomingCall.fromData(data);
-        if (call.roomName == _ringingRoom) return; // yoklama yolu önce yakaladı
-        _ringingRoom = call.roomName;
-        _nav?.push(MaterialPageRoute(
-          builder: (_) => IncomingCallScreen(call: call),
-          fullscreenDialog: true,
-        ));
+        if (_inCall) return; // meşgul — kendi kendine düşer
+        await handleRing(IncomingCall.fromData(data));
       case 'call_cancelled':
         await NotificationService.cancelIncomingCall();
+        await RingtonePlayer.stop();
         _ringingRoom = null;
         if (!_inCall) {
           final callerId = data['callerId'] as String?;
@@ -202,6 +208,7 @@ class CallManager {
   /// gelir (arada ana ekran görünmez). Başarısız olursa false döner.
   static Future<bool> answerIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
+    await RingtonePlayer.stop();
     _ringingRoom = null;
     try {
       final r = await api.respondCall(call.roomName, call.callerId, true, call.video);
@@ -237,6 +244,7 @@ class CallManager {
 
   static Future<void> rejectIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
+    await RingtonePlayer.stop();
     _ringingRoom = null;
     try {
       await api.respondCall(call.roomName, call.callerId, false, call.video);

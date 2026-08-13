@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../services/activity_store.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
+import '../services/ringtone_player.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
@@ -30,6 +31,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     super.initState();
     _timeout = Timer(ringTimeout, () {
       if (mounted && !_connecting) {
+        RingtonePlayer.stop();
         ActivityStore.recordMissed(widget.call.callerId); // cevapsız
         Navigator.of(context).pop();
       }

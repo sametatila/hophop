@@ -59,13 +59,10 @@ class FcmService {
       case 'call_cancelled':
       case 'call_rejected':
       case 'call_accepted':
+        // Bildirim/zil kararını CallManager verir: ön plandaysa yalnızca
+        // ekran + uygulama içi zil (üstten şerit ÇIKMAZ, WhatsApp gibi).
         callEvents.add(message);
-        // Uygulama ön plandayken gelen arama da bildirim gösterir — kullanıcı
-        // başka ekrandaysa gözden kaçmasın. CallManager ayrıca ekran açar.
-        if (type == 'incoming_call') {
-          await NotificationService.showIncomingCall(
-              IncomingCall.fromData(message.data));
-        } else {
+        if (type != 'incoming_call') {
           await NotificationService.cancelIncomingCall();
         }
       case 'friend_request':
