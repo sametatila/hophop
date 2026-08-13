@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/call_manager.dart';
 import '../services/crypto_service.dart';
 import '../widgets/avatar.dart';
+import '../widgets/hop_ui.dart';
 
 const int maxCallParticipants = 6;
 
@@ -238,23 +239,23 @@ class _CallScreenState extends State<CallScreen> {
             SafeArea(
               child: Align(
                 alignment: Alignment.topCenter,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.lock, color: Colors.greenAccent, size: 16),
-                      const SizedBox(width: 6),
-                      Text('$_title · $_timer',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 14)),
-                    ],
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: GlassPanel(
+                    radius: 20,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 7),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock,
+                            color: Colors.greenAccent, size: 16),
+                        const SizedBox(width: 6),
+                        Text('$_title · $_timer',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -291,12 +292,11 @@ class _CallScreenState extends State<CallScreen> {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: Container(
-                  margin: const EdgeInsets.only(bottom: 108),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  margin: const EdgeInsets.only(bottom: 112),
+                  child: GlassPanel(
+                    radius: 20,
+                    padding: const EdgeInsets.all(8),
+                    tint: Colors.black38,
                   child: ValueListenableBuilder(
                     valueListenable: _fx.effect,
                     builder: (context, current, _) => Row(
@@ -328,55 +328,63 @@ class _CallScreenState extends State<CallScreen> {
                       ],
                     ),
                   ),
+                  ),
                 ),
               ),
 
-            // ---- Kontroller ----
+            // ---- Kontroller: cam panel üzerinde degrade butonlar ----
             Align(
               alignment: Alignment.bottomCenter,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _controlButton(
-                        _micOn ? Icons.mic : Icons.mic_off,
-                        _micOn ? Colors.white24 : Colors.orange,
-                        () async {
-                          _micOn = !_micOn;
-                          await widget.room.localParticipant
-                              ?.setMicrophoneEnabled(_micOn);
-                          setState(() {});
-                        },
-                      ),
-                      _controlButton(
-                        _camOn ? Icons.videocam : Icons.videocam_off,
-                        _camOn ? Colors.white24 : Colors.orange,
-                        () async {
-                          _camOn = !_camOn;
-                          await widget.room.localParticipant
-                              ?.setCameraEnabled(_camOn);
-                          setState(() {});
-                        },
-                      ),
-                      _controlButton(
-                        Icons.person_add,
-                        Colors.white24,
-                        _openInviteSheet,
-                      ),
-                      _controlButton(
-                        Icons.auto_awesome,
-                        _showEffects ? Colors.purple : Colors.white24,
-                        () => setState(() => _showEffects = !_showEffects),
-                      ),
-                      _controlButton(
-                        Icons.call_end,
-                        Colors.red,
-                        () => Navigator.of(context).pop(),
-                        large: true,
-                      ),
-                    ],
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: GlassPanel(
+                    radius: 32,
+                    tint: Colors.black26,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _controlButton(
+                          _micOn ? Icons.mic : Icons.mic_off,
+                          _micOn ? Colors.white24 : Colors.orange,
+                          () async {
+                            _micOn = !_micOn;
+                            await widget.room.localParticipant
+                                ?.setMicrophoneEnabled(_micOn);
+                            setState(() {});
+                          },
+                        ),
+                        _controlButton(
+                          _camOn ? Icons.videocam : Icons.videocam_off,
+                          _camOn ? Colors.white24 : Colors.orange,
+                          () async {
+                            _camOn = !_camOn;
+                            await widget.room.localParticipant
+                                ?.setCameraEnabled(_camOn);
+                            setState(() {});
+                          },
+                        ),
+                        _controlButton(
+                          Icons.person_add,
+                          Colors.white24,
+                          _openInviteSheet,
+                        ),
+                        _controlButton(
+                          Icons.auto_awesome,
+                          _showEffects ? Colors.purple : Colors.white24,
+                          () => setState(() => _showEffects = !_showEffects),
+                        ),
+                        const SizedBox(width: 4),
+                        GradientOrb(
+                          icon: Icons.call_end,
+                          size: 58,
+                          colors: const [Color(0xFFE85D5D), Color(0xFFC62839)],
+                          onTap: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -446,13 +454,18 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  Widget _controlButton(IconData icon, Color color, VoidCallback onTap,
-      {bool large = false}) {
-    return FloatingActionButton(
-      heroTag: icon.codePoint,
-      backgroundColor: color,
-      onPressed: onTap,
-      child: Icon(icon, color: Colors.white, size: large ? 32 : 26),
+  Widget _controlButton(IconData icon, Color color, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Pressable(
+        onTap: onTap,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          child: Icon(icon, color: Colors.white, size: 25),
+        ),
+      ),
     );
   }
 }

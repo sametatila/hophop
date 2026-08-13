@@ -72,7 +72,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Center(child: Avatar(user: me, radius: 64)),
+          Center(
+            child: Hero(tag: 'avatar-self', child: Avatar(user: me, radius: 64)),
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

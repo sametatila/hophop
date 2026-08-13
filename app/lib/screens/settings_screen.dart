@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
 import '../services/permission_service.dart';
+import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -59,11 +60,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(12),
         children: [
           if (me != null)
-            Card(
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Hop.radius),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: Hop.gradient
+                      .map((c) => c.withValues(alpha: 0.18))
+                      .toList(),
+                ),
+              ),
               child: ListTile(
-                leading: Avatar(user: me),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Hero(
+                    tag: 'avatar-self', child: Avatar(user: me, radius: 26)),
                 title: Text(me.fullName,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 17)),
                 subtitle: const Text('Profilim — fotoğrafını değiştir'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {

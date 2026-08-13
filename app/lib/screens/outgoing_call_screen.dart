@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
+import '../widgets/hop_ui.dart';
 
 /// Giden arama — "çalıyor" ekranı. Kabul edilince [status] "Bağlanıyor…"a
 /// döner ve CallManager bu ekranı CallScreen ile değiştirir;
@@ -24,14 +26,30 @@ class OutgoingCallScreen extends StatelessWidget {
     return PopScope(
       canPop: false, // geri tuşu yerine kırmızı buton
       child: Scaffold(
-        backgroundColor: const Color(0xFF1B2430),
-        body: SafeArea(
+        backgroundColor: Hop.callGradient.first,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Hop.callGradient,
+                ),
+              ),
+            ),
+            const BlobBackground(dark: true),
+            SafeArea(
           child: SizedBox.expand(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Spacer(),
-                Avatar(user: friend, radius: 72),
+                PulseRing(
+                  radius: 78,
+                  child: Avatar(user: friend, radius: 72),
+                ),
                 const SizedBox(height: 24),
                 Text(friend.fullName,
                     style: const TextStyle(
@@ -59,23 +77,24 @@ class OutgoingCallScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                const CircularProgressIndicator(color: Colors.white54),
                 const Spacer(),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 48),
-                  child: FloatingActionButton.large(
-                    backgroundColor: Colors.red,
-                    onPressed: () async {
+                  child: GradientOrb(
+                    icon: Icons.call_end,
+                    size: 76,
+                    colors: const [Color(0xFFE85D5D), Color(0xFFC62839)],
+                    onTap: () async {
                       await onCancel();
                       if (context.mounted) Navigator.of(context).pop();
                     },
-                    child: const Icon(Icons.call_end, size: 40),
                   ),
                 ),
               ],
             ),
           ),
+            ),
+          ],
         ),
       ),
     );

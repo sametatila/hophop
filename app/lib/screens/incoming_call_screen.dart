@@ -4,7 +4,9 @@ import '../config.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
+import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
+import '../widgets/hop_ui.dart';
 
 /// Uygulama içi gelen arama ekranı (uygulama açıkken; kapalıyken bildirim var).
 /// Cevaplayınca ekran kapanmaz: "Bağlanıyor…" durumuna geçer ve görüşme
@@ -63,14 +65,33 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFF1B2430),
-        body: SafeArea(
+        backgroundColor: Hop.callGradient.first,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Hop.callGradient,
+                ),
+              ),
+            ),
+            const BlobBackground(dark: true),
+            SafeArea(
           child: SizedBox.expand(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Spacer(),
-                Avatar(user: caller, radius: 72),
+                if (_connecting)
+                  Avatar(user: caller, radius: 72)
+                else
+                  PulseRing(
+                    radius: 78,
+                    child: Avatar(user: caller, radius: 72),
+                  ),
                 const SizedBox(height: 24),
                 Text(call.callerName,
                     style: const TextStyle(
@@ -110,15 +131,18 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                       children: [
                         Column(
                           children: [
-                            FloatingActionButton.large(
-                              heroTag: 'reject',
-                              backgroundColor: Colors.red,
-                              onPressed: () {
+                            GradientOrb(
+                              icon: Icons.call_end,
+                              size: 76,
+                              colors: const [
+                                Color(0xFFE85D5D),
+                                Color(0xFFC62839)
+                              ],
+                              onTap: () {
                                 _timeout?.cancel();
                                 Navigator.of(context).pop();
                                 CallManager.rejectIncoming(widget.call);
                               },
-                              child: const Icon(Icons.call_end, size: 40),
                             ),
                             const SizedBox(height: 8),
                             const Text('Reddet',
@@ -127,11 +151,18 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                         ),
                         Column(
                           children: [
-                            FloatingActionButton.large(
-                              heroTag: 'answer',
-                              backgroundColor: Colors.green,
-                              onPressed: _answer,
-                              child: const Icon(Icons.call, size: 40),
+                            PulseRing(
+                              radius: 40,
+                              color: const Color(0xFF34B979),
+                              child: GradientOrb(
+                                icon: Icons.call,
+                                size: 76,
+                                colors: const [
+                                  Color(0xFF34B979),
+                                  Color(0xFF1F9D8A)
+                                ],
+                                onTap: _answer,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             const Text('Cevapla',
@@ -146,6 +177,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
               ],
             ),
           ),
+            ),
+          ],
         ),
       ),
     );

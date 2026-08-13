@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 *service-account*.json
+# Kişisel veri içerir (repo public!) — yalnızca yerelde durur
+KULLANICILAR.md
 
 # Firebase istemci yapılandırması (API anahtarı içerir; yerelde tutulur,
 # gerekirse `node backend/scripts/fetch-google-services.mjs` ile yeniden indirilir)

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/permission_service.dart';
+import '../theme/hop_theme.dart';
+import '../widgets/hop_ui.dart';
 import 'shell.dart';
 
 /// İlk açılış izin sihirbazı — plan §5.5.
@@ -84,7 +87,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
     final theme = Theme.of(context);
     return Scaffold(
-      body: SafeArea(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const BlobBackground(),
+          SafeArea(
         child: PageView.builder(
           controller: _controller,
           physics: const NeverScrollableScrollPhysics(),
@@ -96,8 +103,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(step.icon,
-                      size: 96, color: theme.colorScheme.primary),
+                  Container(
+                    padding: const EdgeInsets.all(26),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(colors: Hop.gradient),
+                    ),
+                    child: Icon(step.icon, size: 64, color: Colors.white),
+                  )
+                      .animate(onPlay: (c) => c.repeat(reverse: true))
+                      .scale(
+                          begin: const Offset(1, 1),
+                          end: const Offset(1.06, 1.06),
+                          duration: 1800.ms,
+                          curve: Curves.easeInOut),
                   const SizedBox(height: 24),
                   Text(step.title,
                       style: theme.textTheme.headlineMedium
@@ -129,6 +148,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             );
           },
         ),
+          ),
+        ],
       ),
     );
   }

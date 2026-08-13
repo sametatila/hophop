@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
+import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
+import '../widgets/hop_ui.dart';
 
 /// İstekler: gelen (kabul/red) ve gönderilen (iptal) bekleyen istekler.
 class RequestsScreen extends StatefulWidget {
@@ -64,7 +67,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : ListView(
+            : (_incoming.isEmpty && _outgoing.isEmpty)
+                ? ListView(children: const [
+                    SizedBox(height: 120),
+                    EmptyState(
+                        icon: Icons.mark_email_read,
+                        title: 'Bekleyen istek yok',
+                        subtitle:
+                            'Kişiler sekmesinden aileni ekleyebilirsin.'),
+                  ])
+                : ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
                   const Row(
@@ -81,29 +93,45 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       padding: EdgeInsets.all(16),
                       child: Text('Bekleyen istek yok'),
                     ),
-                  ..._incoming.map((e) => Card(
-                        child: ListTile(
-                          leading:
-                              e.user != null ? Avatar(user: e.user!) : null,
-                          title: Text(e.user?.fullName ?? '—'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton.filled(
-                                onPressed: () => _respond(e, true),
-                                icon: const Icon(Icons.check),
-                                tooltip: 'Kabul et',
-                              ),
-                              const SizedBox(width: 4),
-                              IconButton.outlined(
-                                onPressed: () => _respond(e, false),
-                                icon: const Icon(Icons.close),
-                                tooltip: 'Reddet',
-                              ),
-                            ],
+                  ..._incoming.map((e) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Card(
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 6),
+                            leading: e.user != null
+                                ? Avatar(user: e.user!, radius: 26)
+                                : null,
+                            title: Text(e.user?.fullName ?? '—',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            subtitle:
+                                const Text('Seninle arkadaş olmak istiyor'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GradientOrb(
+                                  icon: Icons.check,
+                                  size: 44,
+                                  colors: const [
+                                    Color(0xFF34B979),
+                                    Color(0xFF1F9D8A)
+                                  ],
+                                  tooltip: 'Kabul et',
+                                  onTap: () => _respond(e, true),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton.outlined(
+                                  onPressed: () => _respond(e, false),
+                                  icon: const Icon(Icons.close),
+                                  tooltip: 'Reddet',
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      )),
+                      ).animate().fadeIn(duration: Hop.normal).slideX(
+                          begin: 0.06, curve: Curves.easeOutCubic)),
                   const SizedBox(height: 24),
                   const Row(
                     children: [

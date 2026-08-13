@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/models.dart';
+import '../theme/hop_theme.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/crypto_service.dart';
@@ -169,14 +170,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               maxWidth:
                                   MediaQuery.of(context).size.width * 0.75),
                           decoration: BoxDecoration(
-                            color: mine
-                                ? theme.colorScheme.primaryContainer
-                                : theme.colorScheme.surfaceContainerHighest,
+                            color: mine ? null : theme.colorScheme.surfaceContainerHighest,
+                            gradient: mine
+                                ? LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: Hop.gradient
+                                        .map((c) => c.withValues(alpha: 0.30))
+                                        .toList())
+                                : null,
                             borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(mine ? 16 : 4),
-                              bottomRight: Radius.circular(mine ? 4 : 16),
+                              topLeft: const Radius.circular(18),
+                              topRight: const Radius.circular(18),
+                              bottomLeft: Radius.circular(mine ? 18 : 5),
+                              bottomRight: Radius.circular(mine ? 5 : 18),
                             ),
                           ),
                           child: Column(
