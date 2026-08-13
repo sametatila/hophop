@@ -83,12 +83,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: _busy ? null : () => _pickPhoto(ImageSource.camera),
                 icon: const Icon(Icons.photo_camera),
                 label: const Text('Fotoğraf çek'),
+                style:
+                    FilledButton.styleFrom(minimumSize: const Size(0, 48)),
               ),
               const SizedBox(width: 12),
               FilledButton.tonalIcon(
                 onPressed: _busy ? null : () => _pickPhoto(ImageSource.gallery),
                 icon: const Icon(Icons.photo_library),
                 label: const Text('Galeriden seç'),
+                style:
+                    FilledButton.styleFrom(minimumSize: const Size(0, 48)),
               ),
             ],
           ),

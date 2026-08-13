@@ -116,6 +116,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           await PermissionService.fix(e.key);
                           await _refresh();
                         },
+                        style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 44)),
                         child: const Text('Düzelt'),
                       ),
               ),
@@ -142,6 +144,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ?.requestFullScreenIntentPermission();
                     await _refresh();
                   },
+                  // Tema varsayılanı tam genişlik — trailing içinde sınırlanmalı.
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                   child: const Text('Kontrol et'),
                 ),
               ),
