@@ -8,9 +8,7 @@ import 'api_client.dart';
 /// Oturum + yerel önbellek. Oturum JWT'si ve E2EE özel anahtarı
 /// flutter_secure_storage (Android Keystore) içinde tutulur — tekrar giriş yok.
 class AuthService {
-  static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  static const _storage = FlutterSecureStorage();
 
   static const _kToken = 'session_token';
   static const _kUser = 'me_profile';

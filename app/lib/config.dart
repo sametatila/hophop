@@ -1,5 +1,5 @@
 /// Derleme sırasında verilir:
-///   flutter build apk --release --dart-define=HOPHOP_API=https://<proje>.vercel.app
+///   flutter build apk --release --dart-define=HOPHOP_API=https://hophop-kappa.vercel.app
 const String apiBaseUrl = String.fromEnvironment(
   'HOPHOP_API',
   defaultValue: 'https://hophop.vercel.app',

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.hophop.hophop"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37 // flutter_secure_storage / permission_handler gereksinimi
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

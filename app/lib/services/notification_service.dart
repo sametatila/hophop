@@ -38,7 +38,7 @@ class NotificationService {
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
     await _plugin.initialize(
-      settings,
+      settings: settings,
       onDidReceiveNotificationResponse: onResponse,
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
@@ -87,22 +87,23 @@ class NotificationService {
       ],
     );
     await _plugin.show(
-      callNotificationId,
-      call.video ? '📹 ${call.callerName}' : '📞 ${call.callerName}',
-      call.video ? 'Görüntülü arıyor…' : 'Sesli arıyor…',
-      NotificationDetails(android: android),
+      id: callNotificationId,
+      title: call.video ? '📹 ${call.callerName}' : '📞 ${call.callerName}',
+      body: call.video ? 'Görüntülü arıyor…' : 'Sesli arıyor…',
+      notificationDetails: NotificationDetails(android: android),
       payload: jsonEncode(call.toData()),
     );
   }
 
-  static Future<void> cancelIncomingCall() => _plugin.cancel(callNotificationId);
+  static Future<void> cancelIncomingCall() =>
+      _plugin.cancel(id: callNotificationId);
 
   static Future<void> showGeneral(int id, String title, String body) async {
     await _plugin.show(
-      id,
-      title,
-      body,
-      NotificationDetails(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           generalChannel.id,
           generalChannel.name,

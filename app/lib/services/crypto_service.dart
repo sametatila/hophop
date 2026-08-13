@@ -9,9 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// Oda anahtarı iki tarafın ECDH ortak sırrından HKDF ile türetilir ve hiçbir
 /// sunucuya gönderilmez — LiveKit/Vercel/yönetici medyayı çözemez.
 class CryptoService {
-  static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  static const _storage = FlutterSecureStorage();
   static const _kPrivate = 'e2ee_private_seed';
 
   final _x25519 = X25519();
