@@ -47,12 +47,18 @@ const versionCode = Number(codeStr);
 
 // ---- 2) APK ----
 const externalUrl = arg('url');
-const apkPath = resolve(arg('apk', join(ROOT, 'app/build/app/outputs/flutter-apk/app-release.apk')));
+const APK_DIR = join(ROOT, 'app/build/app/outputs/flutter-apk');
+// --target-platform android-arm64 tek app-release.apk üretir; --split-per-abi
+// kullanılırsa dosya adı mimariyi taşır. İkisini de bul.
+const apkPath = resolve(arg('apk',
+  [join(APK_DIR, 'app-release.apk'), join(APK_DIR, 'app-arm64-v8a-release.apk')]
+    .find(existsSync) ?? join(APK_DIR, 'app-release.apk')));
 let size;
 
 if (!externalUrl) {
   if (!existsSync(apkPath)) {
-    die(`APK yok: ${apkPath}\n  Önce: cd app && flutter build apk --release`);
+    die(`APK yok: ${apkPath}\n` +
+        '  Önce: cd app && flutter build apk --release --target-platform android-arm64');
   }
   size = statSync(apkPath).size;
 

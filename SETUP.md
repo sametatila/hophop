@@ -100,8 +100,8 @@ uygulamayı silip yeniden kurması — yani herkesin oturumu ve E2EE anahtarı g
 ```bash
 cd app
 flutter pub get
-flutter build apk --release
-# çıktı: build/app/outputs/flutter-apk/app-release.apk (~126 MB)
+flutter build apk --release --target-platform android-arm64
+# çıktı: build/app/outputs/flutter-apk/app-release.apk
 ```
 
 - `android/` klasörü artık repoda hazır (setup_android.py yalnızca sıfırdan
@@ -111,10 +111,13 @@ flutter build apk --release
 - Taze klonda `google-services.json` eksikse:
   `cd backend && node scripts/fetch-google-services.mjs`
 - Sürüm uyuşmazlığı hatası çıkarsa: `flutter pub upgrade` deneyip tekrar derle.
-- **Boyut:** APK tüm işlemci mimarilerini içeriyor (ML Kit + WebRTC + Firebase).
-  Yalnız modern telefonlar hedeflenecekse `--target-platform android-arm64`
-  boyutu yarıya indirir; ama 2017 öncesi 32-bit cihazlarda kurulmaz. Aile
-  cihazlarını bilmiyorsan olduğu gibi bırak — herkeste çalışır.
+- **Neden `--target-platform android-arm64`:** ML Kit + WebRTC + Firebase yerel
+  kütüphaneleri her işlemci mimarisi için ayrı ayrı pakete giriyor. Bayraksız
+  **126 MB**, arm64 ile **87 MB** (ölçüldü). Ailedeki cihazların hepsi 2018
+  sonrası, yani 64-bit ARM — tek mimari yeterli. Kalan boyutun büyük kısmı ML
+  Kit'in gömülü yüz modeli ve WebRTC; onlar mimariden bağımsız.
+  (İleride çok eski bir tablet çıkarsa bayrağı kaldırıp yeniden derlemek yeter;
+  kurulu uygulamalar etkilenmez.)
 
 ## 6) Dağıt ve test et
 
@@ -151,7 +154,7 @@ sunucudaki `version.json` okunuyor. Akış tek komut:
 #    version: 1.0.0+1  →  version: 1.1.0+2      (Android yalnızca +N'ye bakar)
 
 # 2. Derle (imza anahtarı §4.5'te hazır olmalı)
-cd app && flutter build apk --release
+cd app && flutter build apk --release --target-platform android-arm64
 
 # 3. Yayınla: APK'yı public/'e kopyalar + version.json'ı günceller
 cd ../backend
