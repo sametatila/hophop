@@ -14,7 +14,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <application
-        android:label="hophop"
+        android:label="HopHop"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

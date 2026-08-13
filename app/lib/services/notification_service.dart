@@ -34,8 +34,9 @@ class NotificationService {
   static Future<void> init({
     required void Function(NotificationResponse) onResponse,
   }) async {
+    // Durum çubuğu ikonu tek renkli olmalı — renkli logo gri kare görünür.
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('@drawable/ic_stat_hophop'),
     );
     await _plugin.initialize(
       settings: settings,
@@ -101,7 +102,9 @@ class NotificationService {
   static Future<void> cancelIncomingCall() =>
       _plugin.cancel(id: callNotificationId);
 
-  static Future<void> showGeneral(int id, String title, String body) async {
+  /// [payload] örn. `chat:friendId` — dokununca ilgili ekrana gidilir.
+  static Future<void> showGeneral(int id, String title, String body,
+      {String? payload}) async {
     await _plugin.show(
       id: id,
       title: title,
@@ -115,6 +118,7 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
+      payload: payload,
     );
   }
 }

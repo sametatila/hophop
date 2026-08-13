@@ -41,8 +41,11 @@ class _ShellState extends State<Shell> {
         ],
       ),
       bottomNavigationBar: ListenableBuilder(
-        listenable:
-            Listenable.merge([ActivityStore.unread, ActivityStore.missed]),
+        listenable: Listenable.merge([
+          ActivityStore.unread,
+          ActivityStore.missed,
+          ActivityStore.pendingRequests,
+        ]),
         builder: (context, _) {
           // Cevapsız aramalar da sohbet akışına düştüğü için sunucu tarafı
           // okunmamış sayısına zaten dahil — çift saymamak için yalnız unread.
@@ -62,8 +65,14 @@ class _ShellState extends State<Shell> {
               ),
               const NavigationDestination(
                   icon: Icon(Icons.people), label: 'Kişiler'),
-              const NavigationDestination(
-                  icon: Icon(Icons.mail), label: 'İstekler'),
+              NavigationDestination(
+                icon: Badge(
+                  isLabelVisible: ActivityStore.pendingRequests.value > 0,
+                  label: Text('${ActivityStore.pendingRequests.value}'),
+                  child: const Icon(Icons.mail),
+                ),
+                label: 'İstekler',
+              ),
               const NavigationDestination(
                   icon: Icon(Icons.settings), label: 'Ayarlar'),
             ],

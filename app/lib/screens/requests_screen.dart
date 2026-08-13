@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/models.dart';
+import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
@@ -28,6 +29,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   Future<void> _load() async {
     try {
       final r = await api.friendRequests();
+      ActivityStore.pendingRequests.value = r.incoming.length; // rozet gerçek sayıya oturur
       if (mounted) {
         setState(() {
           _incoming = r.incoming;

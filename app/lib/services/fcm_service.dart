@@ -66,6 +66,7 @@ class FcmService {
           await NotificationService.cancelIncomingCall();
         }
       case 'friend_request':
+        ActivityStore.pendingRequests.value++;
         await NotificationService.showGeneral(
           2001,
           'Arkadaşlık isteği',
@@ -87,6 +88,7 @@ class FcmService {
           2003,
           message.data['fromName'] as String? ?? 'Yeni mesaj',
           'Sana bir mesaj gönderdi',
+          payload: 'chat:$from',
         );
       case 'typing':
         typingEvents.add(message);
@@ -128,6 +130,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         2003,
         message.data['fromName'] as String? ?? 'Yeni mesaj',
         'Sana bir mesaj gönderdi',
+        payload: 'chat:${message.data['fromUserId']}',
       );
       // Uygulama kapalıyken de "iletildi" (✓✓) damgalansın.
       final token = await AuthService.readToken();

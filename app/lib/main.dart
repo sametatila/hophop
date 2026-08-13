@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'models/models.dart';
+import 'screens/chat_screen.dart';
 import 'screens/incoming_call_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell.dart';
@@ -35,6 +36,18 @@ Future<void> main() async {
 void _onNotificationResponse(NotificationResponse response) {
   final payload = response.payload;
   if (payload == null || payload.isEmpty) return;
+  // Mesaj bildirimi → doğrudan o sohbeti aç.
+  if (payload.startsWith('chat:')) {
+    final friendId = payload.substring(5);
+    AuthService.cachedFriends().then((friends) {
+      final friend = friends.where((f) => f.id == friendId).firstOrNull;
+      if (friend != null) {
+        CallManager.navigatorKey.currentState?.push(
+            MaterialPageRoute(builder: (_) => ChatScreen(friend: friend)));
+      }
+    });
+    return;
+  }
   late final IncomingCall call;
   try {
     call = IncomingCall.fromData(

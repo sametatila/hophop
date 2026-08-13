@@ -1,5 +1,6 @@
 import 'activity_store.dart';
 import 'api_client.dart';
+import 'call_manager.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
 import 'foreground_service.dart';
@@ -16,6 +17,7 @@ Future<void> postLoginSetup() async {
   await FcmService.registerToken();
   ActivityStore.init(); // rozetler: okunmamış + cevapsız (arka planda tazelenir)
   RingListener.start(); // gerçek-zamanlı yedek zil yolu (FCM'den bağımsız)
+  CallManager.checkPendingRing(); // soğuk açılışta bekleyen arama varsa çaldır
   try {
     await ForegroundService.start();
   } catch (_) {}

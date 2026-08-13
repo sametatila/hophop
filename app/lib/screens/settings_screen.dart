@@ -213,6 +213,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text('HopHop v1.0.0',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                      fontSize: 12)),
+            ),
+          ),
           OutlinedButton.icon(
             icon: const Icon(Icons.logout),
             label: const Text('Çıkış yap'),

@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/models.dart';
 import '../theme/hop_theme.dart';
 import 'api_client.dart';
+import 'ring_listener.dart';
 
 /// Oturum + yerel önbellek. Oturum JWT'si ve E2EE özel anahtarı
 /// flutter_secure_storage (Android Keystore) içinde tutulur — tekrar giriş yok.
@@ -60,7 +62,29 @@ class AuthService {
     await _storage.write(key: _kUser, value: jsonEncode(user.toJson()));
   }
 
+  /// Tam çıkış: cihaz sistemden düşürülür ve yerel izler temizlenir.
+  /// - FCM token sunucudan silinir (eski cihaza arama/mesaj GİTMEZ)
+  /// - Firebase oturumu ve zil dinleyicisi kapatılır
+  /// - Çözülmüş sohbet önbellekleri ve etkinlik dosyaları diskten silinir
   Future<void> logout() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) await api.updateMe(removeFcmToken: token);
+    } catch (_) {}
+    await RingListener.stop();
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      for (final f in dir.listSync()) {
+        final name = f.uri.pathSegments.last;
+        if (name.startsWith('chat_') ||
+            name == 'friends_cache.json' ||
+            name == 'last_read.json' ||
+            name == 'missed_calls.json' ||
+            name == 'last_activity.json') {
+          await f.delete();
+        }
+      }
+    } catch (_) {}
     api.setToken(null);
     me = null;
     await _storage.delete(key: _kToken);

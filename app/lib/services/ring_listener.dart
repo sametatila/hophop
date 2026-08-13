@@ -59,4 +59,15 @@ class RingListener {
     _retry?.cancel();
     _retry = Timer(const Duration(seconds: 60), start);
   }
+
+  /// Çıkışta: dinleyici + Firebase oturumu kapatılır.
+  static Future<void> stop() async {
+    _retry?.cancel();
+    await _sub?.cancel();
+    _sub = null;
+    _active = false;
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+  }
 }

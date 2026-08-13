@@ -427,8 +427,55 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, i) {
                       final m = _messages[i];
                       final mine = m.fromUserId == myId;
-                      if (m.isCall) return _callItem(m, mine, theme);
-                      return Align(
+                      final sep = _dateSeparator(i, theme);
+                      final item = m.isCall
+                          ? _callItem(m, mine, theme)
+                          : _bubble(m, mine, theme);
+                      if (sep == null) return item;
+                      return Column(children: [sep, item]);
+                    },
+                  ),
+          ),
+          _inputBar(theme),
+        ],
+      ),
+    );
+  }
+
+  /// Gün değişiminde WhatsApp tarzı tarih çipi ("Bugün", "Dün", "5 Ağustos").
+  Widget? _dateSeparator(int i, ThemeData theme) {
+    DateTime day(int ms) {
+      final d = DateTime.fromMillisecondsSinceEpoch(ms);
+      return DateTime(d.year, d.month, d.day);
+    }
+
+    final cur = day(_messages[i].sentAtMs);
+    if (i > 0 && day(_messages[i - 1].sentAtMs) == cur) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final label = cur == today
+        ? 'Bugün'
+        : today.difference(cur).inDays == 1
+            ? 'Dün'
+            : DateFormat('d MMMM y', 'tr').format(cur);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant)),
+    );
+  }
+
+  Widget _bubble(ChatMessage m, bool mine, ThemeData theme) {
+    return Align(
                         alignment:
                             mine ? Alignment.centerRight : Alignment.centerLeft,
                         child: GestureDetector(
@@ -497,44 +544,41 @@ class _ChatScreenState extends State<ChatScreen> {
                             ],
                           ),
                         ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      onChanged: _onTyping,
-                      textCapitalization: TextCapitalization.sentences,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText: 'Mesaj yaz…',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                      ),
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _sending ? null : _send,
-                    icon: const Icon(Icons.send),
-                    iconSize: 26,
-                  ),
-                ],
+      ),
+    );
+  }
+
+  Widget _inputBar(ThemeData theme) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _input,
+                onChanged: _onTyping,
+                textCapitalization: TextCapitalization.sentences,
+                minLines: 1,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: 'Mesaj yaz…',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                ),
+                onSubmitted: (_) => _send(),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            IconButton.filled(
+              onPressed: _sending ? null : _send,
+              icon: const Icon(Icons.send),
+              iconSize: 26,
+            ),
+          ],
+        ),
       ),
     );
   }

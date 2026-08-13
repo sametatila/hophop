@@ -17,6 +17,9 @@ class ActivityStore {
   /// friendId → görülmemiş cevapsız arama sayısı
   static final missed = ValueNotifier<Map<String, int>>({});
 
+  /// Bekleyen gelen arkadaşlık isteği sayısı (İstekler sekmesi rozeti).
+  static final pendingRequests = ValueNotifier<int>(0);
+
   static Map<String, int> _lastRead = {};
 
   static Future<File> _file(String name) async {

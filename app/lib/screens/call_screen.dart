@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../effects/effect_painter.dart';
 import '../effects/fx_controller.dart';
 import '../models/models.dart';
@@ -39,6 +40,7 @@ class _CallScreenState extends State<CallScreen> {
   EventsListener<RoomEvent>? _listener;
   bool _micOn = true;
   late bool _camOn = widget.videoCall;
+  late bool _speakerOn = widget.videoCall; // görüntülüde hoparlör varsayılan
   bool _showEffects = false;
   bool _reconnecting = false; // zayıf bağlantı: "Yeniden bağlanıyor…" durumu
   Duration _elapsed = Duration.zero;
@@ -82,6 +84,9 @@ class _CallScreenState extends State<CallScreen> {
       if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
     });
     AuthService.cachedFriends().then((f) => _friends = f);
+    WakelockPlus.enable(); // görüşme boyunca ekran kararmasın/kilitlenmesin
+    // ignore: deprecated_member_use
+    Hardware.instance.setSpeakerphoneOn(_speakerOn);
   }
 
   void _leave() {
@@ -92,6 +97,7 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
     _listener?.dispose();
@@ -303,25 +309,40 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
 
-            // ---- Yerel önizleme ----
+            // ---- Yerel önizleme (dokun: kamera değiştir) ----
             if (local != null && _camOn)
               SafeArea(
                 child: Align(
                   alignment: Alignment.topRight,
-                  child: Container(
-                    margin: const EdgeInsets.all(12),
-                    width: 110,
-                    height: 150,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: RepaintBoundary(
-                        key: _localPreviewKey,
-                        child: ValueListenableBuilder(
-                          valueListenable: _fx.localFx,
-                          builder: (context, localFrame, _) => CustomPaint(
-                            foregroundPainter: EffectPainter(localFrame),
-                            child: VideoTrackRenderer(local),
-                          ),
+                  child: GestureDetector(
+                    onTap: () => _switchCamera(local),
+                    child: Container(
+                      margin: const EdgeInsets.all(12),
+                      width: 110,
+                      height: 150,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            RepaintBoundary(
+                              key: _localPreviewKey,
+                              child: ValueListenableBuilder(
+                                valueListenable: _fx.localFx,
+                                builder: (context, localFrame, _) =>
+                                    CustomPaint(
+                                  foregroundPainter: EffectPainter(localFrame),
+                                  child: VideoTrackRenderer(local),
+                                ),
+                              ),
+                            ),
+                            const Positioned(
+                              right: 6,
+                              bottom: 6,
+                              child: Icon(Icons.cameraswitch,
+                                  color: Colors.white70, size: 18),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -405,6 +426,16 @@ class _CallScreenState extends State<CallScreen> {
                             _camOn = !_camOn;
                             await widget.room.localParticipant
                                 ?.setCameraEnabled(_camOn);
+                            setState(() {});
+                          },
+                        ),
+                        _controlButton(
+                          _speakerOn ? Icons.volume_up : Icons.phone_in_talk,
+                          _speakerOn ? Colors.white38 : Colors.white24,
+                          () async {
+                            _speakerOn = !_speakerOn;
+                            // ignore: deprecated_member_use
+                            await Hardware.instance.setSpeakerphoneOn(_speakerOn);
                             setState(() {});
                           },
                         ),
@@ -494,6 +525,20 @@ class _CallScreenState extends State<CallScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _switchCamera(VideoTrack local) async {
+    if (local is! LocalVideoTrack) return;
+    try {
+      final options = local.currentOptions;
+      if (options is CameraCaptureOptions) {
+        await local.setCameraPosition(
+          options.cameraPosition == CameraPosition.front
+              ? CameraPosition.back
+              : CameraPosition.front,
+        );
+      }
+    } catch (_) {}
   }
 
   Widget _controlButton(IconData icon, Color color, VoidCallback onTap) {
