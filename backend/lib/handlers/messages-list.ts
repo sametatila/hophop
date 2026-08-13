@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../lib/firebase.js';
-import { requireAuth } from '../../lib/auth.js';
-import { areFriends, pairId } from '../../lib/users.js';
-import { requireMethod, badRequest, str } from '../../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAuth } from '../auth.js';
+import { areFriends, pairId } from '../users.js';
+import { requireMethod, badRequest, str } from '../http.js';
 
 /** GET /api/messages/list?withUserId=&afterMs=0&limit=100
  * İki arkadaş arasındaki şifreli mesajları döner (yalnızca taraflara). */

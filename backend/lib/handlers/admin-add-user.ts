@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../lib/firebase.js';
-import { requireAdmin } from '../../lib/auth.js';
-import { credentialHash, encryptField, isValidBirthDate } from '../../lib/crypto.js';
-import { requireMethod, badRequest, str } from '../../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAdmin } from '../auth.js';
+import { credentialHash, encryptField, isValidBirthDate } from '../crypto.js';
+import { requireMethod, badRequest, str } from '../http.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /** POST /api/admin/add-user { firstName, lastName, birthDate } (X-Admin-Secret header)

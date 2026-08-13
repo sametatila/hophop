@@ -10,6 +10,7 @@ import 'screens/login_screen.dart';
 import 'screens/shell.dart';
 import 'services/auth_service.dart';
 import 'services/bootstrap.dart';
+import 'theme/hop_theme.dart';
 import 'services/call_manager.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
@@ -81,23 +82,26 @@ class _HopHopAppState extends State<HopHopApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'HopHop',
-      navigatorKey: CallManager.navigatorKey,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7A3D)),
-        cardTheme: const CardThemeData(elevation: 1),
+    // Tema, girişte doğum tarihinden türeyen moda (çocuk/yetişkin) göre
+    // canlı olarak değişir.
+    return ValueListenableBuilder(
+      valueListenable: appMode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'HopHop',
+        navigatorKey: CallManager.navigatorKey,
+        debugShowCheckedModeBanner: false,
+        theme: hopTheme(mode),
+        themeAnimationDuration: const Duration(milliseconds: 500),
+        themeAnimationCurve: Curves.easeOutCubic,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('tr'), Locale('en')],
+        locale: const Locale('tr'),
+        home: widget.loggedIn ? const Shell() : const LoginScreen(),
       ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('tr'), Locale('en')],
-      locale: const Locale('tr'),
-      home: widget.loggedIn ? const Shell() : const LoginScreen(),
     );
   }
 }

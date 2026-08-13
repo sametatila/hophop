@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireAuth } from '../../lib/auth.js';
-import { areFriends } from '../../lib/users.js';
-import { pushToUser } from '../../lib/fcm.js';
-import { requireMethod, badRequest, str } from '../../lib/http.js';
+import { requireAuth } from '../auth.js';
+import { areFriends } from '../users.js';
+import { pushToUser } from '../fcm.js';
+import { requireMethod, badRequest, str } from '../http.js';
 
 /** POST /api/call/cancel { roomName, calleeId } — caller gave up; stop ringing. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/bootstrap.dart';
+import '../theme/hop_theme.dart';
+import '../widgets/hop_ui.dart';
 import 'onboarding_screen.dart';
 
 /// Giriş: ad + soyad + doğum tarihi. Başarılı girişten sonra oturum güvenli
@@ -69,80 +72,116 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.cruelty_free,
-                    size: 88, color: theme.colorScheme.primary),
-                Text('HopHop',
-                    style: theme.textTheme.displaySmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('Ailenle görüntülü konuş!',
-                    style: theme.textTheme.titleMedium),
-                const SizedBox(height: 32),
-                TextField(
-                  controller: _first,
-                  textCapitalization: TextCapitalization.words,
-                  autocorrect: false, // isimler otomatik düzeltmeyle bozulmasın
-                  enableSuggestions: false,
-                  keyboardType: TextInputType.name,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                      labelText: 'Adın', prefixIcon: Icon(Icons.person)),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _last,
-                  textCapitalization: TextCapitalization.words,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  keyboardType: TextInputType.name,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                      labelText: 'Soyadın',
-                      prefixIcon: Icon(Icons.family_restroom)),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _pickDate,
-                  icon: const Icon(Icons.cake),
-                  label: Text(
-                    _birthDate == null
-                        ? 'Doğum tarihini seç'
-                        : '${_birthDate!.day}.${_birthDate!.month}.${_birthDate!.year}',
-                    style: const TextStyle(fontSize: 16),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const BlobBackground(),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(28),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Marka: degrade halka içinde tavşan
+                      Container(
+                        padding: const EdgeInsets.all(26),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(colors: Hop.gradient),
+                          boxShadow: [
+                            BoxShadow(
+                                color:
+                                    Hop.gradient.last.withValues(alpha: 0.35),
+                                blurRadius: 30,
+                                offset: const Offset(0, 8)),
+                          ],
+                        ),
+                        child: const Icon(Icons.cruelty_free,
+                            size: 64, color: Colors.white),
+                      )
+                          .animate(
+                              onPlay: (c) => c.repeat(reverse: true))
+                          .scale(
+                              begin: const Offset(1, 1),
+                              end: const Offset(1.05, 1.05),
+                              duration: 2.seconds,
+                              curve: Curves.easeInOut),
+                      const SizedBox(height: 20),
+                      Text('HopHop',
+                          style: theme.textTheme.displaySmall
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      Text('Ailenle görüntülü konuş',
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(color: theme.colorScheme.outline)),
+                      const SizedBox(height: 32),
+                      TextField(
+                        controller: _first,
+                        textCapitalization: TextCapitalization.words,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        keyboardType: TextInputType.name,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                            labelText: 'Adın',
+                            prefixIcon: Icon(Icons.person)),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _last,
+                        textCapitalization: TextCapitalization.words,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        keyboardType: TextInputType.name,
+                        textInputAction: TextInputAction.done,
+                        decoration: const InputDecoration(
+                            labelText: 'Soyadın',
+                            prefixIcon: Icon(Icons.family_restroom)),
+                      ),
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed: _pickDate,
+                        icon: const Icon(Icons.cake),
+                        label: Text(
+                          _birthDate == null
+                              ? 'Doğum tarihini seç'
+                              : '${_birthDate!.day}.${_birthDate!.month}.${_birthDate!.year}',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 14),
+                        Text(_error!,
+                                style:
+                                    TextStyle(color: theme.colorScheme.error),
+                                textAlign: TextAlign.center)
+                            .animate()
+                            .shake(hz: 4, duration: 400.ms),
+                      ],
+                      const SizedBox(height: 22),
+                      FilledButton(
+                        onPressed: _busy ? null : _login,
+                        child: _busy
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Hadi başlayalım!'),
+                      ),
+                    ]
+                        .animate(interval: 70.ms)
+                        .fadeIn(duration: Hop.normal, curve: Curves.easeOut)
+                        .slideY(begin: 0.15, curve: Curves.easeOutCubic),
                   ),
-                  style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56)),
                 ),
-                if (_error != null) ...[
-                  const SizedBox(height: 16),
-                  Text(_error!,
-                      style: TextStyle(color: theme.colorScheme.error),
-                      textAlign: TextAlign.center),
-                ],
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _busy ? null : _login,
-                  style:
-                      FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-                  child: _busy
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Hadi başlayalım!',
-                          style: TextStyle(fontSize: 18)),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

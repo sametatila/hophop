@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../lib/firebase.js';
-import { requireAuth } from '../lib/auth.js';
-import { toPublicProfile, pairId } from '../lib/users.js';
-import { requireMethod } from '../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAuth } from '../auth.js';
+import { toPublicProfile, pairId } from '../users.js';
+import { requireMethod } from '../http.js';
 
 /** GET /api/users — directory of all profiles with friendship status.
  * Non-friends only expose name + photo (no birth date). */

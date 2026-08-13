@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/models.dart';
+import '../theme/hop_theme.dart';
 import 'api_client.dart';
 
 /// Oturum + yerel önbellek. Oturum JWT'si ve E2EE özel anahtarı
@@ -24,10 +25,12 @@ class AuthService {
     if (cached != null) {
       me = UserProfile.fromJson(
           jsonDecode(cached) as Map<String, dynamic>, friendStatus: 'self');
+      appMode.value = modeForBirthDate(me?.birthDate);
     }
     // Arka planda tazele; ağ yoksa önbellekle devam.
     try {
       me = await api.me();
+      appMode.value = modeForBirthDate(me?.birthDate);
       await _storage.write(key: _kUser, value: jsonEncode(me!.toJson()));
     } on ApiException catch (e) {
       if (e.status == 401) {
@@ -43,6 +46,7 @@ class AuthService {
     final r = await api.login(firstName, lastName, birthDate);
     api.setToken(r.token);
     me = r.user;
+    appMode.value = modeForBirthDate(r.user.birthDate);
     await _storage.write(key: _kToken, value: r.token);
     await _storage.write(key: _kUser, value: jsonEncode(r.user.toJson()));
     return r.user;

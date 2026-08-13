@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../lib/firebase.js';
-import { requireAdmin } from '../../lib/auth.js';
-import { toPublicProfile } from '../../lib/users.js';
-import { requireMethod, str } from '../../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAdmin } from '../auth.js';
+import { toPublicProfile } from '../users.js';
+import { requireMethod, str } from '../http.js';
 
 /**
  * GET    /api/admin/users                      → list all users (name + id only)

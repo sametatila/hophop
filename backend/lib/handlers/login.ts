@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../lib/firebase.js';
-import { credentialHash, isValidBirthDate } from '../lib/crypto.js';
-import { signSession } from '../lib/auth.js';
-import { toFriendProfile } from '../lib/users.js';
-import { requireMethod, badRequest, str } from '../lib/http.js';
+import { db } from '../firebase.js';
+import { credentialHash, isValidBirthDate } from '../crypto.js';
+import { signSession } from '../auth.js';
+import { toFriendProfile } from '../users.js';
+import { requireMethod, badRequest, str } from '../http.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 // Basic per-instance rate limiting: family app, not a bank. Serverless instances

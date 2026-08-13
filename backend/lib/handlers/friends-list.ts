@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../lib/firebase.js';
-import { requireAuth } from '../../lib/auth.js';
-import { toFriendProfile } from '../../lib/users.js';
-import { requireMethod } from '../../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAuth } from '../auth.js';
+import { toFriendProfile } from '../users.js';
+import { requireMethod } from '../http.js';
 
 /** GET /api/friends — full profiles (with birth date + public key) of friends. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

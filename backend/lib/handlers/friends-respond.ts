@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../../lib/firebase.js';
-import { requireAuth } from '../../lib/auth.js';
-import { pairId, toPublicProfile } from '../../lib/users.js';
-import { pushToUser } from '../../lib/fcm.js';
-import { requireMethod, badRequest, str } from '../../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAuth } from '../auth.js';
+import { pairId, toPublicProfile } from '../users.js';
+import { pushToUser } from '../fcm.js';
+import { requireMethod, badRequest, str } from '../http.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /** POST /api/friends/respond { requestId, accept: boolean } */

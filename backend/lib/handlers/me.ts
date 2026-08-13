@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from '../lib/firebase.js';
-import { requireAuth } from '../lib/auth.js';
-import { toFriendProfile } from '../lib/users.js';
-import { requireMethod, badRequest, str } from '../lib/http.js';
+import { db } from '../firebase.js';
+import { requireAuth } from '../auth.js';
+import { toFriendProfile } from '../users.js';
+import { requireMethod, badRequest, str } from '../http.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
