@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hophop/theme/hop_theme.dart';
 
 void main() {
+  // Test ortamında ağ yok — google_fonts indirme denemesi test hatası üretmesin.
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   test('AppBar başlık stili tema nesnesinde doğru', () {
     final adult = hopTheme(HopMode.adult);
     final kid = hopTheme(HopMode.kid);
