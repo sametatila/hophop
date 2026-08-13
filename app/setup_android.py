@@ -115,6 +115,71 @@ def patch_app_gradle():
     print(f'✓ {path.name} yamalandı (google-services, desugaring, minSdk 23)')
 
 
+def patch_signing():
+    """release derlemesini android/key.properties varsa gerçek anahtarla imzalat.
+
+    Dosya yoksa debug anahtarına düşülür (uyarı basar). Ayrıntı: SETUP.md §5.1.
+    """
+    path = APP / 'android/app/build.gradle.kts'
+    if not path.exists():
+        print('⚠ build.gradle.kts yok — imzalama yaması atlandı')
+        return
+    text = path.read_text()
+    if 'key.properties' in text:
+        print('✓ imzalama yapılandırması zaten var')
+        return
+
+    header = (
+        'import java.io.FileInputStream\n'
+        'import java.util.Properties\n\n')
+    block = (
+        '\n// Yayın imzası: android/key.properties (gitignore\'da) varsa oradan okunur.\n'
+        'val keystorePropertiesFile = rootProject.file("key.properties")\n'
+        'val keystoreProperties = Properties().apply {\n'
+        '    if (keystorePropertiesFile.exists()) {\n'
+        '        FileInputStream(keystorePropertiesFile).use { load(it) }\n'
+        '    }\n'
+        '}\n'
+        'val hasReleaseKey = keystorePropertiesFile.exists()\n')
+    signing = (
+        '    signingConfigs {\n'
+        '        if (hasReleaseKey) {\n'
+        '            create("release") {\n'
+        '                storeFile = file(keystoreProperties.getProperty("storeFile"))\n'
+        '                storePassword = keystoreProperties.getProperty("storePassword")\n'
+        '                keyAlias = keystoreProperties.getProperty("keyAlias")\n'
+        '                keyPassword = keystoreProperties.getProperty("keyPassword")\n'
+        '            }\n'
+        '        }\n'
+        '    }\n\n'
+        '    buildTypes {\n'
+        '        release {\n'
+        '            signingConfig = if (hasReleaseKey) {\n'
+        '                signingConfigs.getByName("release")\n'
+        '            } else {\n'
+        '                logger.warn("\\n⚠ android/key.properties yok → release APK DEBUG '
+        'anahtarıyla imzalanıyor. Dağıtmadan önce app/make-release-key.sh çalıştır.\\n")\n'
+        '                signingConfigs.getByName("debug")\n'
+        '            }\n'
+        '        }\n'
+        '    }\n')
+
+    # DİKKAT: replacement'lar fonksiyon olarak verilir — düz metin verilirse
+    # re.sub içindeki "\n" gibi kaçışlar çözülür ve Kotlin string'i satır ortasında kırılır.
+    text = header + text
+    text = re.sub(r'(^plugins\s*\{[^}]*\}\n)', lambda m: m.group(1) + block,
+                  text, count=1, flags=re.M | re.S)
+    # flutter create'in ürettiği varsayılan buildTypes bloğunu tamamen değiştir
+    new_text = re.sub(
+        r'^    buildTypes \{.*?^    \}\n', lambda m: signing, text, count=1,
+        flags=re.M | re.S)
+    if new_text == text:  # buildTypes bulunamadıysa android{} sonuna ekle
+        print('⚠ buildTypes bloğu bulunamadı — imzalama bloğunu elle ekle')
+        return
+    path.write_text(new_text)
+    print('✓ build.gradle.kts imzalama yapılandırması eklendi')
+
+
 def patch_settings_gradle():
     kts = APP / 'android/settings.gradle.kts'
     groovy = APP / 'android/settings.gradle'
@@ -152,6 +217,7 @@ def main():
     run_flutter_create()
     patch_manifest()
     patch_app_gradle()
+    patch_signing()
     patch_settings_gradle()
     copy_ringtone()
     gsj = APP / 'android/app/google-services.json'

@@ -27,6 +27,8 @@ app/android/.gradle/
 app/android/local.properties
 app/android/**/*.keystore
 app/android/**/*.jks
+# Yayın imzası — kaybolursa güncelleme kurulamaz, şifre yöneticinde yedekle
+app/android/key.properties
 app/android/app/.cxx/
 
 # ---- IDE / OS ----

@@ -4,8 +4,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
 import '../services/permission_service.dart';
+import '../services/update_service.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
+import '../widgets/update_card.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 
@@ -20,6 +22,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   Map<Permission, PermissionStatus> _statuses = {};
   bool _aggressiveOem = false;
+  ({int code, String name})? _version;
+  bool _checkingUpdate = false;
 
   static final _labels = {
     Permission.notification: (
@@ -40,6 +44,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _refresh();
+    UpdateService.installedVersion().then((v) {
+      if (mounted) setState(() => _version = v);
+    });
+  }
+
+  Future<void> _checkUpdate() async {
+    setState(() => _checkingUpdate = true);
+    final found = await UpdateService.check(force: true);
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(found == null
+          ? 'En güncel sürümü kullanıyorsun.'
+          : 'Yeni sürüm var: ${found.version}'),
+    ));
   }
 
   /// Basit ebeveyn kapısı: çarpım sorusu (çocuk uygulamalarında standart).
@@ -129,6 +148,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
+          const SizedBox(height: 16),
+          // Güncelleme varsa kart burada da görünsün — ana ekranı kaçıran olur.
+          const UpdateCard(),
+          Card(
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              leading: const Icon(Icons.system_update, size: 30),
+              title: const Text('Uygulama sürümü'),
+              subtitle: Text(_version == null
+                  ? '—'
+                  : '${_version!.name} (${_version!.code})'),
+              trailing: _checkingUpdate
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5))
+                  : FilledButton.tonal(
+                      onPressed: _checkUpdate,
+                      style:
+                          FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                      child: const Text('Denetle'),
+                    ),
+            ),
+          ),
           const SizedBox(height: 16),
           const Text('İzin durumu',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),

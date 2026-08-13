@@ -1,9 +1,25 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.google.gms.google-services")
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// ————— Yayın imzası —————
+// Anahtar bilgileri android/key.properties'ten okunur; o dosya da .jks de
+// .gitignore'dadır (repo public). Dosya yoksa debug anahtarına düşülür ama o APK
+// aileye DAĞITILMAMALIDIR: debug anahtarı makineye özeldir, üstüne güncelleme
+// kurulamaz (INSTALL_FAILED_UPDATE_INCOMPATIBLE) ve uygulamayı silmek gerekir.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        FileInputStream(keystorePropertiesFile).use { load(it) }
+    }
+}
+val hasReleaseKey = keystorePropertiesFile.exists()
 
 android {
     namespace = "com.hophop.hophop"
@@ -27,11 +43,28 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "\n⚠ android/key.properties yok → release APK DEBUG anahtarıyla " +
+                    "imzalanıyor.\n  Aileye dağıtmadan önce: app/ dizininde " +
+                    "./make-release-key.sh çalıştır (SETUP.md §4.5).\n")
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

@@ -6,9 +6,11 @@ import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
+import '../services/update_service.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
+import '../widgets/update_card.dart';
 import 'chat_screen.dart';
 
 /// Ana ekran: selamlama + yaklaşan doğum günleri şeridi + arkadaş kartları.
@@ -31,6 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
         [ActivityStore.unread, ActivityStore.missed, ActivityStore.lastActivity]);
     _activity.addListener(_onActivity);
     _load();
+    // Sessiz güncelleme denetimi: başarısız olursa hiçbir şey göstermez.
+    UpdateService.check();
   }
 
   void _onActivity() {
@@ -148,6 +152,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         ).animate().fadeIn(duration: Hop.normal),
                       ),
                     ),
+                  ),
+                  const SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverToBoxAdapter(child: UpdateCard()),
                   ),
                   if (upcoming.isNotEmpty)
                     SliverToBoxAdapter(child: _birthdayStrip(upcoming)),

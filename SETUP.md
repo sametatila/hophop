@@ -76,13 +76,32 @@ API_URL=https://hophop.exfe.me ADMIN_SECRET=<secret> \
 - Ayrıntılı liste (doğum tarihleriyle, yalnızca yerelde): proje kökündeki
   `KULLANICILAR.md` — gitignore'da, public repoya gitmez.
 
+## 4.5) ⚠️ Yayın imzası — derlemeden ve dağıtımdan ÖNCE, bir kez
+
+**Bunu yapmadan APK dağıtma.** Şu an release derlemesi Android'in *debug*
+anahtarıyla imzalanıyor. Debug anahtarı bu bilgisayara özel ve silinirse geri
+gelmez; farklı anahtarla imzalanmış yeni sürüm kurulu uygulamanın **üstüne
+kurulamaz** (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). O noktada tek çare herkesin
+uygulamayı silip yeniden kurması — yani herkesin oturumu ve E2EE anahtarı gider.
+
+- [ ] **Anahtarı üret** (parolayı sen belirlersin, betik sorar):
+  ```bash
+  cd app
+  ./make-release-key.sh
+  ```
+  → `android/hophop-release.jks` + `android/key.properties` (ikisi de .gitignore'da)
+- [ ] **Bu iki dosyayı şifre yöneticine yedekle.** Kaybedersen yukarıdaki senaryo.
+- [ ] Sonra `flutter build apk --release` — gradle anahtarı otomatik bulur.
+  `key.properties` yoksa derleme yine çalışır ama uyarı basar ve debug'a düşer;
+  o APK'yı dağıtma. `publish-release.mjs` de böyle bir APK'yı fark edip durdurur.
+
 ## 5) APK'yı derle
 
 ```bash
 cd app
 flutter pub get
 flutter build apk --release
-# çıktı: build/app/outputs/flutter-apk/app-release.apk
+# çıktı: build/app/outputs/flutter-apk/app-release.apk (~126 MB)
 ```
 
 - `android/` klasörü artık repoda hazır (setup_android.py yalnızca sıfırdan
@@ -92,6 +111,10 @@ flutter build apk --release
 - Taze klonda `google-services.json` eksikse:
   `cd backend && node scripts/fetch-google-services.mjs`
 - Sürüm uyuşmazlığı hatası çıkarsa: `flutter pub upgrade` deneyip tekrar derle.
+- **Boyut:** APK tüm işlemci mimarilerini içeriyor (ML Kit + WebRTC + Firebase).
+  Yalnız modern telefonlar hedeflenecekse `--target-platform android-arm64`
+  boyutu yarıya indirir; ama 2017 öncesi 32-bit cihazlarda kurulmaz. Aile
+  cihazlarını bilmiyorsan olduğu gibi bırak — herkeste çalışır.
 
 ## 6) Dağıt ve test et
 
@@ -104,8 +127,13 @@ flutter build apk --release
   - Arama: ekran KAPALIYKEN ara → arama ekranı doğrudan açılmalı (tam ekran);
     uygulama açıkken ara → üstten şerit çıkmadan ekran + uygulama zili
   - Görüşmede: hoparlör düğmesi, kendi görüntüne dokununca kamera değişimi,
-    efekt şeridi (gerçek yüzle tavşan/köpek; ağız açınca dil)
+    efekt seçici (4 kategori / 45 efekt): hayvan (ağız açınca köpek dili,
+    kurbağa dili), şapka (pervane dönmeli), yüz, sihir (kar/konfeti yüz
+    görünmese de akmalı; "Renkli ağız" ağız açınca) — karşı cihazda da görünmeli
   - Meşgul testi: biri görüşmedeyken üçüncü kişi arasın → "Meşgul" anında dönmeli
+  - İptal testi: A arar, B cevaplamadan A kapatır → B'de zil ANINDA susmalı,
+    gelen arama ekranı kapanmalı, cevapsız rozeti düşmeli; B tam o anda
+    cevaplarsa "Arama sona ermiş" görmeli (boş odaya bağlanmamalı)
   - Mesaj: gönder (saat→✓), karşı cihaza düşünce ✓✓, sohbet açınca rozet sıfır;
     "yazıyor…" göstergesi; bildirime dokununca sohbet açılmalı
   - Sohbette arama kayıtları: süreli "Görüntülü arama · 2 dk", kırmızı cevapsızlar
@@ -113,12 +141,50 @@ flutter build apk --release
     30 sn+ kopunca "Bağlantı koptu — Yeniden ara" teklifi
 - [ ] Doğum günü şeridi: doğum günü yaklaşan biri ana ekranda görünmeli
 
+## 6.5) Yeni sürüm yayınlama (uygulama içi güncelleme)
+
+Uygulama mağazada olmadığı için Play'in güncelleme akışı yok; onun yerine
+sunucudaki `version.json` okunuyor. Akış tek komut:
+
+```bash
+# 1. Sürüm numarasını artır — app/pubspec.yaml
+#    version: 1.0.0+1  →  version: 1.1.0+2      (Android yalnızca +N'ye bakar)
+
+# 2. Derle (imza anahtarı §4.5'te hazır olmalı)
+cd app && flutter build apk --release
+
+# 3. Yayınla: APK'yı public/'e kopyalar + version.json'ı günceller
+cd ../backend
+node scripts/publish-release.mjs --notes "Efekt şeridi hızlandı"
+
+# 4. Deploy
+git add backend/public && git commit -m "Sürüm 1.1.0" && git push
+```
+
+Betik, APK debug anahtarıyla imzalanmışsa ya da sürüm kodu artmamışsa **durur** —
+en sık yapılan iki hata bunlar.
+
+Kullanıcı tarafında ne oluyor:
+
+- Ana ekranda ve Ayarlar'da "Yeni sürüm hazır" kartı çıkar (`--notes` metni burada
+  görünür). Elle bakmak isteyen: **Ayarlar → Uygulama sürümü → Denetle**.
+- "Şimdi güncelle" → APK iner → sistem kurulum ekranı açılır → kullanıcı onaylar.
+  Sessiz kurulum yok; veriler ve oturum korunur.
+- Android 8+ ilk seferde "bu kaynaktan kuruluma izin ver" ister; uygulama bu izni
+  açıklayan bir diyalog gösterip doğrudan ilgili ayar ekranına götürür.
+- Otomatik denetim 6 saatte bir; ağ yoksa sessizce geçer, kullanıcıyı rahatsız etmez.
+
+APK'yı `public/` yerine Drive/S3 gibi bir yerde tutuyorsan:
+`node scripts/publish-release.mjs --url https://.../hophop.apk` — kopyalama
+yapılmaz, uygulama o adresten iner.
+
 ## 7) İşletme (düzenli)
 
 - Ayda bir **LiveKit dashboard** → dakika kullanımı (ücretsiz: 5.000 katılımcı-dk/ay;
   grup aramada her katılımcı ayrı sayılır). Aşarsa: ücretli katman ya da self-host
 - Her backend değişikliğinden sonra: `node scripts/e2e-test.mjs` (39 test)
 - Yeni aile üyesi = adım 4 + APK gönder
+- Yeni sürüm = adım 6.5 (tek komut); kimseye APK göndermene gerek kalmaz
 - Sorun yaşayan cihaz = uygulamada **Ayarlar → İzin durumu → Düzelt**
 - **Emülatörde** bildirim/zil kesilirse: WiFi kapat-aç (bayat GCM bağlantısı) ya da
   cold boot — gerçek cihazlarda bu sorun yoktur
@@ -128,9 +194,11 @@ flutter build apk --release
 - **Gizlilik:** Aramalar LiveKit E2EE ile uçtan uca şifreli; oda anahtarı cihazlarda
   ECDH ile türetilir, hiçbir sunucuya gitmez. Sen dahil kimse içeriği göremez.
   Veritabanında kimlik bilgileri hash + AES-256-GCM şifreli durur.
-- **Efektler** ML Kit tabanlı overlay'dir (ücretsiz, sınırsız kullanıcı): tavşan, köpek
-  (ağız açınca dil), taç, gözlük, bıyık. Gerçek yüz *deformasyonu* (balık yüzü gibi)
-  overlay ile yapılamaz — istersen ileride DeepAR ücretli katmanına geçilir (plan §5.4).
+- **Efektler** ML Kit tabanlı overlay'dir (ücretsiz, sınırsız kullanıcı): 4 kategori,
+  45 efekt — Hayvanlar (14), Şapkalar (12), Yüz (10), Sihir (9, animasyonlu parçacık).
+  Tümü vektörel çizim: asset/paket yok, APK büyümez. Gerçek yüz *deformasyonu*
+  (balık yüzü gibi) overlay ile yapılamaz — istersen ileride DeepAR ücretli
+  katmanına geçilir (plan §5.4).
 - Düşük donanımlı tablette efekt takılırsa `face_tracker.dart` içindeki 125 ms
   aralığını büyüt (ör. 200).
 - Cihaz kaybı/sıfırlama: aynı bilgilerle tekrar girilir; yeni E2EE anahtarı otomatik üretilir.
