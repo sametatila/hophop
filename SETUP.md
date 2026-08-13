@@ -15,6 +15,9 @@ Aşağıdaki adımlar bir kez yapılır; sonrası sadece kullanıcı eklemek ve 
   - ✅ Android uygulaması (`com.hophop.hophop`) API ile oluşturuldu,
     `google-services.json` indirildi → `app/android/app/` içinde
   - Yeni klonda tekrar indirmek için: `cd backend && node scripts/fetch-google-services.mjs`
+  - [ ] **Authentication → "Get started"** butonuna bir kez bas (gerçek-zamanlı
+    zil dinleyicisi için şart; API ile açılamıyor, tek tık, ücretsiz):
+    https://console.firebase.google.com/project/hophop-59a59/authentication
 - [ ] **LiveKit Cloud** → proje aç → **API Key + Secret + wss URL** not al
 - [ ] **Vercel** hesabı (varsa geç)
 
