@@ -14,6 +14,7 @@ import callRespond from '../lib/handlers/call-respond.js';
 import callCancel from '../lib/handlers/call-cancel.js';
 import callInvite from '../lib/handlers/call-invite.js';
 import callPending from '../lib/handlers/call-pending.js';
+import callEnded from '../lib/handlers/call-ended.js';
 import firebaseToken from '../lib/handlers/firebase-token.js';
 import adminAddUser from '../lib/handlers/admin-add-user.js';
 import adminUsers from '../lib/handlers/admin-users.js';
@@ -37,6 +38,7 @@ const routes: Record<string, Handler> = {
   'call/cancel': callCancel,
   'call/invite': callInvite,
   'call/pending': callPending,
+  'call/ended': callEnded,
   'firebase-token': firebaseToken,
   'admin/add-user': adminAddUser,
   'admin/users': adminUsers,

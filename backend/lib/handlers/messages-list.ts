@@ -52,6 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     kind: d.get('kind') ?? 'msg',
     callType: d.get('callType') ?? null,
     outcome: d.get('outcome') ?? null,
+    durationSec: d.get('durationSec') ?? null,
   }));
 
   return res.status(200).json({ messages });

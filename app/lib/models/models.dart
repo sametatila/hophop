@@ -132,6 +132,7 @@ class ChatMessage {
   final String kind;
   final String? callType; // audio | video
   final String? outcome; // answered | missed
+  final int? durationSec; // cevaplanmış aramanın süresi
 
   ChatMessage({
     required this.id,
@@ -144,6 +145,7 @@ class ChatMessage {
     this.kind = 'msg',
     this.callType,
     this.outcome,
+    this.durationSec,
   });
 
   bool get isCall => kind == 'call';

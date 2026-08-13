@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       roomName,
       callerId: userId,
     }),
-    logCallEvent({ callerId: userId, calleeId, video, outcome: 'missed' }),
+    logCallEvent({ callerId: userId, calleeId, video, outcome: 'missed', roomName }),
     db().collection('rings').doc(calleeId).delete().catch(() => {}),
   ]);
   return res.status(200).json({ ok: true });

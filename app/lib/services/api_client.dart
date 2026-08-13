@@ -152,6 +152,11 @@ class ApiClient {
     );
   }
 
+  /// Görüşme bitti — süre sohbet akışındaki arama kaydına işlenir.
+  Future<void> callEnded(String roomName, int durationSec) =>
+      _request('POST', '/api/call/ended',
+          {'roomName': roomName, 'durationSec': durationSec});
+
   Future<void> cancelCall(String roomName, String calleeId, bool video) =>
       _request('POST', '/api/call/cancel',
           {'roomName': roomName, 'calleeId': calleeId, 'video': video});
@@ -204,7 +209,8 @@ class ApiClient {
             int? deliveredAtMs,
             String kind,
             String? callType,
-            String? outcome
+            String? outcome,
+            int? durationSec
           })>> listMessages(String withUserId, {int afterMs = 0}) async {
     final r = await _request(
         'GET', '/api/messages/list?withUserId=$withUserId&afterMs=$afterMs');
@@ -218,6 +224,7 @@ class ApiClient {
               kind: (m['kind'] as String?) ?? 'msg',
               callType: m['callType'] as String?,
               outcome: m['outcome'] as String?,
+              durationSec: (m['durationSec'] as num?)?.toInt(),
             ))
         .toList();
   }

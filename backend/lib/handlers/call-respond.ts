@@ -13,8 +13,9 @@ export async function logCallEvent(opts: {
   calleeId: string;
   video: boolean;
   outcome: 'answered' | 'missed';
+  roomName?: string;
 }): Promise<void> {
-  const { callerId, calleeId, video, outcome } = opts;
+  const { callerId, calleeId, video, outcome, roomName } = opts;
   try {
     await db()
       .collection('messages')
@@ -26,6 +27,7 @@ export async function logCallEvent(opts: {
         toUserId: calleeId,
         callType: video ? 'video' : 'audio',
         outcome,
+        roomName: roomName ?? null, // görüşme süresi sonradan bu kimlikle işlenir
         ciphertext: '',
         sentAtMs: Date.now(),
       });
@@ -60,14 +62,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!accept) {
     await Promise.all([
       pushToUser(callerId, { type: 'call_rejected', roomName }),
-      logCallEvent({ callerId, calleeId: userId, video, outcome: 'missed' }),
+      logCallEvent({ callerId, calleeId: userId, video, outcome: 'missed', roomName }),
       clearRing,
     ]);
     return res.status(200).json({ ok: true });
   }
 
   await Promise.all([
-    logCallEvent({ callerId, calleeId: userId, video, outcome: 'answered' }),
+    logCallEvent({ callerId, calleeId: userId, video, outcome: 'answered', roomName }),
     clearRing,
   ]);
   const me = toPublicProfile(meSnap);

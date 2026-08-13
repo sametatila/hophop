@@ -10,6 +10,7 @@ import '../theme/hop_theme.dart';
 import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/call_manager.dart';
 import '../services/crypto_service.dart';
 import '../services/fcm_service.dart';
 import '../widgets/avatar.dart';
@@ -60,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 kind: (m['k'] as String?) ?? 'msg',
                 callType: m['ct'] as String?,
                 outcome: m['o'] as String?,
+                durationSec: (m['d'] as num?)?.toInt(),
               ))
           .toList();
       if (cached.isNotEmpty && mounted && _messages.isEmpty) {
@@ -86,6 +88,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 'k': m.kind,
                 'ct': m.callType,
                 'o': m.outcome,
+                'd': m.durationSec,
               })
           .toList();
       await f.writeAsString(jsonEncode(data));
@@ -172,6 +175,7 @@ class _ChatScreenState extends State<ChatScreen> {
           kind: m.kind,
           callType: m.callType,
           outcome: m.outcome,
+          durationSec: m.durationSec,
         ));
         if (m.sentAtMs > _lastMs) _lastMs = m.sentAtMs;
       }
@@ -201,14 +205,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Sohbet akışındaki arama kaydı öğesi (WhatsApp'taki gibi):
   /// cevaplanan → "Sesli/Görüntülü arama"; cevapsız → kırmızı "Cevapsız …".
+  String _durationLabel(int sec) {
+    final h = sec ~/ 3600, m = (sec % 3600) ~/ 60, s = sec % 60;
+    if (h > 0) return '$h sa $m dk';
+    if (m > 0) return '$m dk $s sn';
+    return '$s sn';
+  }
+
   Widget _callItem(ChatMessage m, bool mine, ThemeData theme) {
     final video = m.callType == 'video';
     final missed = m.outcome == 'missed';
-    final label = missed
-        ? (mine
-            ? 'Cevapsız ${video ? 'görüntülü' : 'sesli'} arama'
-            : 'Cevapsız ${video ? 'görüntülü' : 'sesli'} arama')
+    var label = missed
+        ? 'Cevapsız ${video ? 'görüntülü' : 'sesli'} arama'
         : '${video ? 'Görüntülü' : 'Sesli'} arama';
+    if (!missed && m.durationSec != null && m.durationSec! > 0) {
+      label += ' · ${_durationLabel(m.durationSec!)}';
+    }
     final icon = missed
         ? Icons.phone_missed
         : video
@@ -369,12 +381,22 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 12),
+        actions: [
+          IconButton(
+            tooltip: 'Sesli ara',
+            onPressed: () => CallManager.startCall(widget.friend, false),
+            icon: const Icon(Icons.call),
+          ),
+          IconButton(
+            tooltip: 'Görüntülü ara',
+            onPressed: () => CallManager.startCall(widget.friend, true),
+            icon: const Icon(Icons.videocam),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 8),
             child: Tooltip(
               message: 'Uçtan uca şifreli',
-              child: Icon(Icons.lock, size: 18),
+              child: Icon(Icons.lock, size: 16),
             ),
           ),
         ],

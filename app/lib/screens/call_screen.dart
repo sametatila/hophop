@@ -19,12 +19,14 @@ class CallScreen extends StatefulWidget {
   final Room room;
   final UserProfile peer;
   final bool videoCall;
+  final String roomName;
 
   const CallScreen({
     super.key,
     required this.room,
     required this.peer,
     required this.videoCall,
+    required this.roomName,
   });
 
   @override
@@ -38,8 +40,10 @@ class _CallScreenState extends State<CallScreen> {
   bool _micOn = true;
   late bool _camOn = widget.videoCall;
   bool _showEffects = false;
+  bool _reconnecting = false; // zayıf bağlantı: "Yeniden bağlanıyor…" durumu
   Duration _elapsed = Duration.zero;
   Timer? _clock;
+  Timer? _reconnectWatchdog;
   List<UserProfile> _friends = [];
 
   @override
@@ -48,6 +52,21 @@ class _CallScreenState extends State<CallScreen> {
     _fx = FxController(room: widget.room, localPreviewKey: _localPreviewKey);
     _listener = widget.room.createListener()
       ..on<RoomDisconnectedEvent>((_) => _leave())
+      // Zayıf bağlantı yönetimi (WhatsApp davranışı): SDK kendiliğinden
+      // yeniden bağlanmayı dener; biz durumu gösterir ve 30 sn'de toparlanmazsa
+      // görüşmeyi düzgünce kapatırız.
+      ..on<RoomReconnectingEvent>((_) {
+        if (!mounted) return;
+        setState(() => _reconnecting = true);
+        _reconnectWatchdog?.cancel();
+        _reconnectWatchdog = Timer(const Duration(seconds: 30), () {
+          if (mounted && _reconnecting) _leave();
+        });
+      })
+      ..on<RoomReconnectedEvent>((_) {
+        _reconnectWatchdog?.cancel();
+        if (mounted) setState(() => _reconnecting = false);
+      })
       ..on<ParticipantDisconnectedEvent>((_) {
         // Grup aramada biri ayrılınca ekran açık kalır; oda boşalınca kapanır.
         if (widget.room.remoteParticipants.isEmpty) {
@@ -74,10 +93,15 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void dispose() {
     _clock?.cancel();
+    _reconnectWatchdog?.cancel();
     _listener?.dispose();
     _fx.dispose();
     widget.room.disconnect();
     widget.room.dispose();
+    // Görüşme süresi sohbet akışındaki arama kaydına işlensin.
+    if (_elapsed.inSeconds > 0) {
+      api.callEnded(widget.roomName, _elapsed.inSeconds).catchError((_) {});
+    }
     super.dispose();
   }
 
@@ -248,12 +272,30 @@ class _CallScreenState extends State<CallScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.lock,
-                            color: Colors.greenAccent, size: 16),
+                        Icon(
+                          _reconnecting ? Icons.wifi_off : Icons.lock,
+                          color: _reconnecting
+                              ? Colors.orangeAccent
+                              : Colors.greenAccent,
+                          size: 16,
+                        ),
                         const SizedBox(width: 6),
-                        Text('$_title · $_timer',
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 14)),
+                        Text(
+                          _reconnecting
+                              ? 'Yeniden bağlanıyor…'
+                              : '$_title · $_timer',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14),
+                        ),
+                        if (_reconnecting) ...[
+                          const SizedBox(width: 8),
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white70),
+                          ),
+                        ],
                       ],
                     ),
                   ),
