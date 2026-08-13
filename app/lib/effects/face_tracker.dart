@@ -29,16 +29,47 @@ class FaceTracker {
 
   Timer? _timer;
   bool _busy = false;
+  bool _running = false;
   void Function(FxFrame?)? onFace;
   String effect = 'none';
 
+  /// Hedef tempo (güçlü cihaz). Gerçek tempo ölçüme göre yavaşlar.
+  static const _minPeriod = Duration(milliseconds: 125);
+  static const _maxPeriod = Duration(milliseconds: 500);
+  Duration _period = _minPeriod;
+
   void start() {
-    _timer ??= Timer.periodic(const Duration(milliseconds: 125), (_) => _tick());
+    if (_running) return;
+    _running = true;
+    _schedule();
+  }
+
+  /// Sabit periyot yerine kendi kendini ayarlayan zamanlayıcı.
+  ///
+  /// Bir turun maliyeti cihazdan cihaza çok değişiyor: toImage() GPU'dan geri
+  /// okuma yapar, ML Kit ayrı bir kanal turu ister. Zayıf telefonda tur 200 ms
+  /// sürerken 125 ms'de bir tetiklemek UI iş parçacığını doyuruyor ve görüntü
+  /// donuyordu. Artık bir sonraki tur, ölçülen sürenin ~2 katı sonrasına
+  /// kurulur: hızlı cihazda 8 fps, yavaş cihazda kendiliğinden 2-3 fps.
+  void _schedule() {
+    _timer = Timer(_period, () async {
+      if (!_running) return;
+      final sw = Stopwatch()..start();
+      await _tick();
+      sw.stop();
+      final target = sw.elapsed * 2;
+      _period = target < _minPeriod
+          ? _minPeriod
+          : (target > _maxPeriod ? _maxPeriod : target);
+      if (_running) _schedule();
+    });
   }
 
   void stop() {
+    _running = false;
     _timer?.cancel();
     _timer = null;
+    _period = _minPeriod;
     onFace?.call(null);
   }
 
@@ -89,8 +120,9 @@ class FaceTracker {
     final render = ctx?.findRenderObject();
     if (render is! RenderRepaintBoundary || render.size.isEmpty) return null;
 
-    // Hedef genişlik ~192 px — ML Kit'e yeter, dönüşüm ucuz kalır.
-    final ratio = 192 / render.size.width;
+    // Hedef genişlik ~160 px — ML Kit'in yüz bulması için fazlasıyla yeter,
+    // dönüştürülecek piksel sayısını 192'ye göre üçte bir azaltır.
+    final ratio = 160 / render.size.width;
     final image = await render.toImage(pixelRatio: ratio.clamp(0.05, 1.0));
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -104,21 +136,24 @@ class FaceTracker {
     }
   }
 
+  /// RGBA → NV21.
+  ///
+  /// Yalnızca parlaklık (Y) düzlemi hesaplanır; renk (UV) düzlemi nötr 128 ile
+  /// doldurulur. ML Kit yüz algılama gri tonlama üzerinden çalıştığı için renk
+  /// bilgisi sonucu değiştirmiyor — ama piksel başına iki çarpma + iki clamp
+  /// daha az iş demek. (NV21 biçimi UV düzleminin var olmasını şart koşar,
+  /// içeriğini değil.)
   static Uint8List _rgbaToNv21(Uint8List rgba, int stride, int w, int h) {
-    final out = Uint8List(w * h + (w * h) ~/ 2);
-    var uv = w * h;
+    final ySize = w * h;
+    final out = Uint8List(ySize + ySize ~/ 2)..fillRange(ySize, ySize + ySize ~/ 2, 128);
     for (var y = 0; y < h; y++) {
+      var i = y * stride * 4;
+      var o = y * w;
       for (var x = 0; x < w; x++) {
-        final i = (y * stride + x) * 4;
-        final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
-        out[y * w + x] =
-            ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
-        if (y.isEven && x.isEven) {
-          out[uv++] = (((112 * r - 94 * g - 18 * b + 128) >> 8) + 128)
-              .clamp(0, 255); // V
-          out[uv++] = (((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128)
-              .clamp(0, 255); // U
-        }
+        out[o++] =
+            ((66 * rgba[i] + 129 * rgba[i + 1] + 25 * rgba[i + 2] + 128) >> 8) +
+                16;
+        i += 4;
       }
     }
     return out;

@@ -73,9 +73,8 @@ a{color:inherit}
 header{padding:clamp(52px,11vh,96px) 0 8px;text-align:center}
 .mark{position:relative;width:132px;height:132px;margin:0 auto 22px;display:grid;place-items:center}
 .mark .badge{
-  width:104px;height:104px;border-radius:50%;display:grid;place-items:center;
-  background:linear-gradient(135deg,var(--indigo),var(--violet) 55%,var(--cyan));
-  box-shadow:0 14px 40px rgba(122,91,224,.45);
+  width:106px;height:106px;display:block;border-radius:24px;
+  box-shadow:0 14px 40px rgba(216,97,178,.42);
   animation:breathe 2.4s ease-in-out infinite alternate;
 }
 @keyframes breathe{to{transform:scale(1.05)}}
@@ -157,21 +156,53 @@ footer .fmark{display:inline-flex;align-items:center;gap:9px;font-weight:800;col
 <div class="bg"><div class="blob i"></div><div class="blob v"></div><div class="blob c"></div></div>
 <div class="grid"></div>
 
-<!-- Tavşan markası: login_screen.dart'taki degrade halka içindeki tavşanın birebir karşılığı -->
+<!--
+  Marka işareti brand/hophop-icon.svg ile birebir aynı geometridir; uygulamanın
+  kendi ikonuyla aynı tavşan. İki kullanım biçimi:
+    #hophop-icon → indirilecek uygulamanın ikonunun ta kendisi (renkli, kahraman alanı)
+    #bunny       → aynı siluetin tek renkli hâli (küçük/satır içi yerler)
+-->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="bunny" viewBox="0 0 64 64">
-    <g fill="#fff">
-      <ellipse cx="23" cy="20" rx="6.2" ry="14.5" transform="rotate(-16 23 20)"/>
-      <ellipse cx="41" cy="20" rx="6.2" ry="14.5" transform="rotate(16 41 20)"/>
-      <circle cx="32" cy="41" r="15.5"/>
+  <defs>
+    <linearGradient id="hopIconBg" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7A65"/>
+      <stop offset=".34" stop-color="#FF939D"/>
+      <stop offset=".68" stop-color="#DC6EBA"/>
+      <stop offset="1" stop-color="#B266D5"/>
+    </linearGradient>
+    <clipPath id="hopSquircle"><rect width="192" height="192" rx="42" ry="42"/></clipPath>
+  </defs>
+  <symbol id="hophop-icon" viewBox="0 0 192 192">
+    <g clip-path="url(#hopSquircle)">
+      <rect width="192" height="192" fill="url(#hopIconBg)"/>
+      <g transform="rotate(-8 56.5 46)">
+        <rect x="35" y="6" width="43" height="80" rx="21.5" fill="#fff"/>
+        <rect x="43.5" y="17" width="26" height="58" rx="13" fill="#FFB2C8"/>
+      </g>
+      <g transform="rotate(8 135.5 46)">
+        <rect x="114" y="6" width="43" height="80" rx="21.5" fill="#fff"/>
+        <rect x="122.5" y="17" width="26" height="58" rx="13" fill="#FFB2C8"/>
+      </g>
+      <circle cx="95.5" cy="107.5" r="56.5" fill="#fff"/>
+      <ellipse cx="56.5" cy="123.5" rx="10" ry="6" fill="#FFC5D0"/>
+      <ellipse cx="134.5" cy="123.5" rx="10" ry="6" fill="#FFC5D0"/>
+      <g fill="#34213A">
+        <ellipse cx="71" cy="109" rx="6" ry="6.5"/>
+        <ellipse cx="120" cy="109" rx="6" ry="6.5"/>
+      </g>
+      <g fill="#fff" opacity=".9">
+        <circle cx="68.8" cy="106.4" r="2"/><circle cx="117.8" cy="106.4" r="2"/>
+      </g>
+      <ellipse cx="95.5" cy="118.5" rx="6" ry="4" fill="#FF78A0"/>
+      <path d="M88 125.5 Q95.5 132 103 125.5" fill="none" stroke="#34213A"
+            stroke-width="2.4" stroke-linecap="round"/>
     </g>
-    <g fill="#141A2E">
-      <circle cx="26" cy="38.5" r="2.1"/><circle cx="38" cy="38.5" r="2.1"/>
-      <path d="M32 46.6l-3.4-2.9h6.8z"/>
-    </g>
-    <g stroke="#141A2E" stroke-width="1.4" stroke-linecap="round" opacity=".75">
-      <path d="M27 47.5h-8"/><path d="M27.5 50.2l-7 2.2"/>
-      <path d="M37 47.5h8"/><path d="M36.5 50.2l7 2.2"/>
+  </symbol>
+  <symbol id="bunny" viewBox="0 0 192 192">
+    <g fill="currentColor">
+      <g transform="rotate(-8 56.5 46)"><rect x="35" y="6" width="43" height="80" rx="21.5"/></g>
+      <g transform="rotate(8 135.5 46)"><rect x="114" y="6" width="43" height="80" rx="21.5"/></g>
+      <circle cx="95.5" cy="107.5" r="56.5"/>
     </g>
   </symbol>
 </svg>
@@ -181,7 +212,8 @@ footer .fmark{display:inline-flex;align-items:center;gap:9px;font-weight:800;col
     <div class="pill"><span class="dot"></span> Sadece davetle · Reklam yok · Ücretsiz</div>
     <div class="mark">
       <div class="ring"></div><div class="ring"></div>
-      <div class="badge"><svg width="66" height="66" aria-hidden="true"><use href="#bunny"/></svg></div>
+      <!-- İndireceğin uygulamanın ikonunun ta kendisi -->
+      <svg class="badge" viewBox="0 0 192 192" aria-label="HopHop uygulama ikonu"><use href="#hophop-icon"/></svg>
     </div>
     <h1><span>HopHop</span></h1>
     <p class="tag">Ailenle görüntülü konuş.</p>
@@ -213,7 +245,7 @@ footer .fmark{display:inline-flex;align-items:center;gap:9px;font-weight:800;col
         <h3>Uçtan uca şifreli</h3>
         <p>Şifre iki telefonda oluşur, sunucuya hiç uğramaz. Konuştuklarınızı kimse duyamaz.</p></div>
       <div class="card reveal">
-        <div class="ico"><svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true"><use href="#bunny"/></svg></div>
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 192 192" aria-hidden="true"><use href="#bunny"/></svg></div>
         <h3>Yüz efektleri</h3>
         <p>Tavşan kulağı, köpek burnu, taç, gözlük. Ağzını açınca köpeğin dili sarkar.</p></div>
       <div class="card reveal">
@@ -247,7 +279,7 @@ footer .fmark{display:inline-flex;align-items:center;gap:9px;font-weight:800;col
 <footer>
   <div class="wrap">
     <div class="fmark">
-      <svg width="26" height="26" aria-hidden="true"><use href="#bunny"/></svg> HopHop
+      <svg width="24" height="24" viewBox="0 0 192 192" aria-hidden="true"><use href="#bunny"/></svg> HopHop
     </div>
     <div>Aile için yapıldı · Reklam yok, takip yok, görüşme kaydı yok</div>
   </div>

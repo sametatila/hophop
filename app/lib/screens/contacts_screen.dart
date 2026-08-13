@@ -83,10 +83,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Card(
                           child: ListTile(
+                            // Avatar kartın tavanına/tabanına değmesin diye
+                            // hem küçültüldü hem dikey pay verildi.
                             contentPadding: EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: Hop.isKid ? 4 : 0),
-                            leading: Avatar(user: u, radius: Hop.isKid ? 28 : 24),
+                                vertical: Hop.isKid ? 10 : 8),
+                            leading: Avatar(
+                                user: u,
+                                radius: Hop.isKid ? 24 : 20,
+                                viewable: true,
+                                heroTag: 'avatar-contact-${u.id}'),
                             title: Text(u.fullName,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w700)),

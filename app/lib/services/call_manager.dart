@@ -338,7 +338,12 @@ class CallManager {
       );
       final route = MaterialPageRoute(
         builder: (_) => CallScreen(
-            room: room, peer: peer, videoCall: video, roomName: roomName),
+            room: room,
+            peer: peer,
+            videoCall: video,
+            roomName: roomName,
+            livekitUrl: url,
+            livekitToken: token),
         fullscreenDialog: true,
       );
       final result = replaceCurrent && nav.canPop()

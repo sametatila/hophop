@@ -23,12 +23,18 @@ class CallScreen extends StatefulWidget {
   final bool videoCall;
   final String roomName;
 
+  /// Kopan bağlantıyı ekranı kapatmadan yeniden kurabilmek için saklanır.
+  final String livekitUrl;
+  final String livekitToken;
+
   const CallScreen({
     super.key,
     required this.room,
     required this.peer,
     required this.videoCall,
     required this.roomName,
+    required this.livekitUrl,
+    required this.livekitToken,
   });
 
   @override
@@ -51,19 +57,65 @@ class _CallScreenState extends State<CallScreen>
   late bool _speakerOn = widget.videoCall; // görüntülüde hoparlör varsayılan
   bool _showEffects = false;
   bool _reconnecting = false; // zayıf bağlantı: "Yeniden bağlanıyor…" durumu
+  bool _peerLost = false; // karşı tarafın bağlantısı gitti (biz iyiyiz)
+  bool _recovering = false; // kendi yeniden bağlanma döngümüz sürüyor
   Duration _elapsed = Duration.zero;
   Timer? _clock;
   Timer? _reconnectWatchdog;
+  Timer? _peerLostTimer;
   Timer? _emptyRoomGuard;
   List<UserProfile> _friends = [];
+
+  /// Kopan bağlantıyı toparlamak için tanınan süre. Bu sürede ekran açık kalır,
+  /// kullanıcı WiFi'ı geri açarsa görüşme kaldığı yerden devam eder.
+  static const _recoveryWindow = Duration(seconds: 30);
+
+  /// Karşı taraftan ses/görüntü gelmemeye başladıktan sonra beklenecek süre.
+  /// LiveKit sunucusunun kendi zaman aşımı ~45 sn; o kadar beklenirse kullanıcı
+  /// donmuş bir görüntüye "görüşme sürüyor" sanarak bakıyor.
+  static const _peerLostWindow = Duration(seconds: 20);
 
   @override
   void initState() {
     super.initState();
     _fx = FxController(room: widget.room, localPreviewKey: _localPreviewKey);
     _listener = widget.room.createListener()
-      // Beklenmedik kopuş (biz kapatmadan oda düştü) → "Yeniden ara" teklif edilir.
-      ..on<RoomDisconnectedEvent>((_) => _leave(dropped: true))
+      // Kopuş: sebebi ağ ise EKRANI KAPATMA — kullanıcıya toparlanma penceresi
+      // tanı ve arka planda yeniden bağlanmayı dene. (Önceden her kopuşta anında
+      // kapanıyordu: WiFi kapanır kapanmaz görüşme uyarısız bitiyordu.)
+      ..on<RoomDisconnectedEvent>((e) {
+        // Bunlar "ağ gitti" anlamına gelen, sunucudan değil istemciden doğan
+        // sebepler (livekit_client 2.11 DisconnectReason).
+        const networkReasons = {
+          DisconnectReason.disconnected,
+          DisconnectReason.signalingConnectionFailure,
+          DisconnectReason.signalClose,
+          DisconnectReason.reconnectAttemptsExceeded,
+          DisconnectReason.stateMismatch,
+          DisconnectReason.unknown,
+        };
+        if (e.reason == null || networkReasons.contains(e.reason)) {
+          _beginRecovery();
+        } else {
+          // Karşı taraf kapattı, sunucu odayı sildi vb. → gerçekten bitti.
+          _leave(dropped: e.reason != DisconnectReason.clientInitiated);
+        }
+      })
+      // Karşı tarafın bağlantısı gitti mi? Sunucunun katılımcıyı düşürmesini
+      // (~45 sn) beklemeden bağlantı kalitesinden anlıyoruz.
+      ..on<ParticipantConnectionQualityUpdatedEvent>((e) {
+        if (e.participant is! RemoteParticipant) return;
+        if (e.connectionQuality == ConnectionQuality.lost) {
+          if (_peerLostTimer?.isActive ?? false) return;
+          if (mounted) setState(() => _peerLost = true);
+          _peerLostTimer = Timer(_peerLostWindow, () {
+            if (mounted && _peerLost) _leave(dropped: true);
+          });
+        } else {
+          _peerLostTimer?.cancel();
+          if (_peerLost && mounted) setState(() => _peerLost = false);
+        }
+      })
       // Zayıf bağlantı yönetimi (WhatsApp davranışı): SDK kendiliğinden
       // yeniden bağlanmayı dener; biz durumu gösterir ve 30 sn'de toparlanmazsa
       // görüşmeyi düzgünce kapatırız.
@@ -119,7 +171,40 @@ class _CallScreenState extends State<CallScreen>
     Hardware.instance.setSpeakerphoneOn(_speakerOn);
   }
 
+  /// Ağ koptuğunda: ekranı açık tut, "Yeniden bağlanıyor…" göster ve
+  /// [_recoveryWindow] boyunca odaya yeniden katılmayı dene. Kullanıcı bu
+  /// sürede WiFi'ı geri açarsa görüşme kaldığı yerden sürer.
+  Future<void> _beginRecovery() async {
+    if (_recovering || !mounted) return;
+    _recovering = true;
+    setState(() => _reconnecting = true);
+
+    final deadline = DateTime.now().add(_recoveryWindow);
+    while (mounted && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (!mounted) break;
+      try {
+        await widget.room.connect(widget.livekitUrl, widget.livekitToken);
+        // Yeni oturumda yayınlar sıfırlanır; mikrofon/kamera geri açılır.
+        await widget.room.localParticipant?.setMicrophoneEnabled(_micOn);
+        if (widget.videoCall) {
+          await widget.room.localParticipant?.setCameraEnabled(_camOn);
+        }
+        if (!mounted) break;
+        _recovering = false;
+        setState(() => _reconnecting = false);
+        return;
+      } catch (_) {
+        // Ağ hâlâ yok — süre dolana kadar denemeye devam.
+      }
+    }
+    _recovering = false;
+    _leave(dropped: true);
+  }
+
   void _leave({bool dropped = false}) {
+    _peerLostTimer?.cancel();
+    _reconnectWatchdog?.cancel();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop(dropped ? 'dropped' : null);
     }
@@ -130,6 +215,7 @@ class _CallScreenState extends State<CallScreen>
     WakelockPlus.disable();
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
+    _peerLostTimer?.cancel();
     _emptyRoomGuard?.cancel();
     _fxTicker?.dispose();
     _fxClock.dispose();
@@ -207,7 +293,8 @@ class _CallScreenState extends State<CallScreen>
       auth.me?.id,
     };
     final candidates = _friends
-        .where((f) => !inCallIds.contains(f.id) && (f.publicKey ?? '').isNotEmpty)
+        .where(
+            (f) => !inCallIds.contains(f.id) && (f.publicKey ?? '').isNotEmpty)
         .toList();
     final slots =
         maxCallParticipants - (widget.room.remoteParticipants.length + 1);
@@ -268,8 +355,8 @@ class _CallScreenState extends State<CallScreen>
                       : () => Navigator.pop(context, selected),
                   icon: const Icon(Icons.ring_volume),
                   label: Text('Davet et (${selected.length})'),
-                  style:
-                      FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48)),
                 ),
               ),
             ],
@@ -287,14 +374,15 @@ class _CallScreenState extends State<CallScreen>
         await api.inviteToCall(active.roomName, id, active.video, wrapped);
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('${friend.firstName} davet edilemedi')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('${friend.firstName} davet edilemedi')));
         }
       }
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${invited.length} kişi aranıyor — katıldıklarında görünecekler')));
+          content: Text(
+              '${invited.length} kişi aranıyor — katıldıklarında görünecekler')));
     }
   }
 
@@ -321,8 +409,8 @@ class _CallScreenState extends State<CallScreen>
             else
               GridView.count(
                 crossAxisCount: 2,
-                childAspectRatio:
-                    MediaQuery.of(context).size.aspectRatio * (remotes.length <= 2 ? 0.5 : 1),
+                childAspectRatio: MediaQuery.of(context).size.aspectRatio *
+                    (remotes.length <= 2 ? 0.5 : 1),
                 children: [for (final p in remotes) _remoteTile(p)],
               ),
 
@@ -334,14 +422,16 @@ class _CallScreenState extends State<CallScreen>
                   padding: const EdgeInsets.only(top: 8),
                   child: GlassPanel(
                     radius: 20,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 7),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _reconnecting ? Icons.wifi_off : Icons.lock,
-                          color: _reconnecting
+                          _reconnecting || _peerLost
+                              ? Icons.wifi_off
+                              : Icons.lock,
+                          color: _reconnecting || _peerLost
                               ? Colors.orangeAccent
                               : Colors.greenAccent,
                           size: 16,
@@ -350,11 +440,13 @@ class _CallScreenState extends State<CallScreen>
                         Text(
                           _reconnecting
                               ? 'Yeniden bağlanıyor…'
-                              : '$_title · $_timer',
+                              : _peerLost
+                                  ? '${widget.peer.firstName} bağlantısını kaybetti…'
+                                  : '$_title · $_timer',
                           style: const TextStyle(
                               color: Colors.white, fontSize: 14),
                         ),
-                        if (_reconnecting) ...[
+                        if (_reconnecting || _peerLost) ...[
                           const SizedBox(width: 8),
                           const SizedBox(
                             width: 12,
@@ -415,155 +507,169 @@ class _CallScreenState extends State<CallScreen>
                 ),
               ),
 
-            // ---- Efekt seçici: kategori sekmeleri + kaydırılan şerit ----
-            if (_showEffects)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 112),
-                  constraints: BoxConstraints(
-                      maxWidth: (MediaQuery.sizeOf(context).width - 24)
-                          .clamp(0.0, 460.0)),
-                  child: GlassPanel(
-                    radius: 20,
-                    padding: const EdgeInsets.all(8),
-                    tint: Colors.black38,
-                    child: ValueListenableBuilder(
-                      valueListenable: _fx.effect,
-                      builder: (context, current, _) => Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Kapat: efekt yok
-                              _fxCatChip(
-                                selected: current == 'none',
-                                icon: Icons.block,
-                                label: 'Yok',
-                                onTap: () => _fx.effect.value = 'none',
-                              ),
-                              for (final cat in fxCategories)
-                                _fxCatChip(
-                                  selected: _fxCat == cat.id,
-                                  icon: cat.icon,
-                                  label: cat.label,
-                                  onTap: () =>
-                                      setState(() => _fxCat = cat.id),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          SizedBox(
-                            height: 68,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                for (final e in fxCategories
-                                    .firstWhere((c) => c.id == _fxCat)
-                                    .effects)
-                                  Pressable(
-                                    onTap: () => _fx.effect.value = e.id,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: 3),
-                                      decoration: BoxDecoration(
-                                        color: current == e.id
-                                            ? Colors.white24
-                                            : Colors.transparent,
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          EffectThumb(
-                                              effectId: e.id, size: 40),
-                                          const SizedBox(height: 2),
-                                          Text(e.label,
-                                              style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 11)),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // ---- Kontroller: cam panel üzerinde degrade butonlar ----
+            // ---- Alt katman: efekt seçici + kontroller ----
+            // Tek bir kolonda ve tek SafeArea içinde duruyorlar: efekt paneli
+            // her cihazda kontrollerin TAM ÜSTÜNDE açılır. (Önceden ayrı
+            // Align'lardı; sabit 112 px pay jest çubuğu olan telefonlarda
+            // yetmiyor, üstelik kontroller sonra çizildiği için paneli
+            // örtüyordu.)
             Align(
               alignment: Alignment.bottomCenter,
               child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: GlassPanel(
-                    radius: 32,
-                    tint: Colors.black26,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _controlButton(
-                          _micOn ? Icons.mic : Icons.mic_off,
-                          _micOn ? Colors.white24 : Colors.orange,
-                          () async {
-                            _micOn = !_micOn;
-                            await widget.room.localParticipant
-                                ?.setMicrophoneEnabled(_micOn);
-                            setState(() {});
-                          },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_showEffects)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        constraints: BoxConstraints(
+                            maxWidth: (MediaQuery.sizeOf(context).width - 24)
+                                .clamp(0.0, 460.0)),
+                        child: GlassPanel(
+                          radius: 20,
+                          padding: const EdgeInsets.all(8),
+                          tint: Colors.black38,
+                          child: ValueListenableBuilder(
+                            valueListenable: _fx.effect,
+                            builder: (context, current, _) => Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Kapat: efekt yok
+                                    _fxCatChip(
+                                      selected: current == 'none',
+                                      icon: Icons.block,
+                                      label: 'Yok',
+                                      onTap: () => _fx.effect.value = 'none',
+                                    ),
+                                    for (final cat in fxCategories)
+                                      _fxCatChip(
+                                        selected: _fxCat == cat.id,
+                                        icon: cat.icon,
+                                        label: cat.label,
+                                        onTap: () =>
+                                            setState(() => _fxCat = cat.id),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 68,
+                                  child: ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    children: [
+                                      for (final e in fxCategories
+                                          .firstWhere((c) => c.id == _fxCat)
+                                          .effects)
+                                        Pressable(
+                                          onTap: () => _fx.effect.value = e.id,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            margin: const EdgeInsets.symmetric(
+                                                horizontal: 3),
+                                            decoration: BoxDecoration(
+                                              color: current == e.id
+                                                  ? Colors.white24
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                EffectThumb(
+                                                    effectId: e.id, size: 40),
+                                                const SizedBox(height: 2),
+                                                Text(e.label,
+                                                    style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 11)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        _controlButton(
-                          _camOn ? Icons.videocam : Icons.videocam_off,
-                          _camOn ? Colors.white24 : Colors.orange,
-                          () async {
-                            _camOn = !_camOn;
-                            await widget.room.localParticipant
-                                ?.setCameraEnabled(_camOn);
-                            setState(() {});
-                          },
+                      ),
+
+                    // ---- Kontroller: cam panel üzerinde degrade butonlar ----
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: GlassPanel(
+                        radius: 32,
+                        tint: Colors.black26,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _controlButton(
+                              _micOn ? Icons.mic : Icons.mic_off,
+                              _micOn ? Colors.white24 : Colors.orange,
+                              () async {
+                                _micOn = !_micOn;
+                                await widget.room.localParticipant
+                                    ?.setMicrophoneEnabled(_micOn);
+                                setState(() {});
+                              },
+                            ),
+                            _controlButton(
+                              _camOn ? Icons.videocam : Icons.videocam_off,
+                              _camOn ? Colors.white24 : Colors.orange,
+                              () async {
+                                _camOn = !_camOn;
+                                await widget.room.localParticipant
+                                    ?.setCameraEnabled(_camOn);
+                                setState(() {});
+                              },
+                            ),
+                            _controlButton(
+                              _speakerOn
+                                  ? Icons.volume_up
+                                  : Icons.phone_in_talk,
+                              _speakerOn ? Colors.white38 : Colors.white24,
+                              () async {
+                                _speakerOn = !_speakerOn;
+                                // ignore: deprecated_member_use
+                                await Hardware.instance
+                                    .setSpeakerphoneOn(_speakerOn);
+                                setState(() {});
+                              },
+                            ),
+                            _controlButton(
+                              Icons.person_add,
+                              Colors.white24,
+                              _openInviteSheet,
+                            ),
+                            _controlButton(
+                              Icons.auto_awesome,
+                              _showEffects ? Colors.purple : Colors.white24,
+                              () =>
+                                  setState(() => _showEffects = !_showEffects),
+                            ),
+                            const SizedBox(width: 4),
+                            GradientOrb(
+                              icon: Icons.call_end,
+                              size: 58,
+                              colors: const [
+                                Color(0xFFE85D5D),
+                                Color(0xFFC62839)
+                              ],
+                              onTap: () => Navigator.of(context).pop(),
+                            ),
+                          ],
                         ),
-                        _controlButton(
-                          _speakerOn ? Icons.volume_up : Icons.phone_in_talk,
-                          _speakerOn ? Colors.white38 : Colors.white24,
-                          () async {
-                            _speakerOn = !_speakerOn;
-                            // ignore: deprecated_member_use
-                            await Hardware.instance.setSpeakerphoneOn(_speakerOn);
-                            setState(() {});
-                          },
-                        ),
-                        _controlButton(
-                          Icons.person_add,
-                          Colors.white24,
-                          _openInviteSheet,
-                        ),
-                        _controlButton(
-                          Icons.auto_awesome,
-                          _showEffects ? Colors.purple : Colors.white24,
-                          () => setState(() => _showEffects = !_showEffects),
-                        ),
-                        const SizedBox(width: 4),
-                        GradientOrb(
-                          icon: Icons.call_end,
-                          size: 58,
-                          colors: const [Color(0xFFE85D5D), Color(0xFFC62839)],
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),

@@ -54,27 +54,46 @@ class _ShellState extends State<Shell> {
           return NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (i) => setState(() => _index = i),
+            // İkonlar sekmenin İŞİNİ anlatır: ev/mektup gibi genel simgeler
+            // yerine aramaya, kişi aramaya ve kişi eklemeye karşılık gelenler.
+            // Seçiliyken dolu, değilken çizgi hâli (Material 3 alışkanlığı).
             destinations: [
               NavigationDestination(
                 icon: Badge(
                   isLabelVisible: total > 0,
                   label: Text('$total'),
-                  child: const Icon(Icons.home),
+                  child: const Icon(Icons.groups_outlined),
+                ),
+                selectedIcon: Badge(
+                  isLabelVisible: total > 0,
+                  label: Text('$total'),
+                  child: const Icon(Icons.groups),
                 ),
                 label: 'Arkadaşlar',
               ),
               const NavigationDestination(
-                  icon: Icon(Icons.people), label: 'Kişiler'),
+                icon: Icon(Icons.person_search_outlined),
+                selectedIcon: Icon(Icons.person_search),
+                label: 'Kişiler',
+              ),
               NavigationDestination(
                 icon: Badge(
                   isLabelVisible: ActivityStore.pendingRequests.value > 0,
                   label: Text('${ActivityStore.pendingRequests.value}'),
-                  child: const Icon(Icons.mail),
+                  child: const Icon(Icons.person_add_alt),
+                ),
+                selectedIcon: Badge(
+                  isLabelVisible: ActivityStore.pendingRequests.value > 0,
+                  label: Text('${ActivityStore.pendingRequests.value}'),
+                  child: const Icon(Icons.person_add_alt_1),
                 ),
                 label: 'İstekler',
               ),
               const NavigationDestination(
-                  icon: Icon(Icons.settings), label: 'Ayarlar'),
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: 'Ayarlar',
+              ),
             ],
           );
         },

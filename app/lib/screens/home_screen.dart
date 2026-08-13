@@ -10,6 +10,7 @@ import '../services/update_service.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
+import '../widgets/hop_logo.dart';
 import '../widgets/update_card.dart';
 import 'chat_screen.dart';
 
@@ -138,16 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient:
-                                    LinearGradient(colors: Hop.gradient),
-                              ),
-                              child: const Icon(Icons.cruelty_free,
-                                  color: Colors.white, size: 26),
-                            ),
+                            const HopLogo(size: 46),
                           ],
                         ).animate().fadeIn(duration: Hop.normal),
                       ),
@@ -232,7 +224,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? LinearGradient(colors: Hop.gradient)
                             : null,
                       ),
-                      child: Avatar(user: f, radius: 26),
+                      // Hero etiketi yok: aynı kişi hem doğum günü şeridinde
+                      // hem alttaki kartta olabilir, iki aynı etiket çakışır.
+                      child: Avatar(user: f, radius: 26, viewable: true),
                     ),
                     const SizedBox(height: 5),
                     Text(f.firstName,
@@ -296,7 +290,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: Hero(
                       tag: 'avatar-${friend.id}',
-                      child: Avatar(user: friend, radius: Hop.isKid ? 34 : 30),
+                      child: Avatar(
+                          user: friend,
+                          radius: Hop.isKid ? 34 : 30,
+                          viewable: true,
+                          heroTag: 'avatar-friend-${friend.id}'),
                     ),
                   ),
                 ),

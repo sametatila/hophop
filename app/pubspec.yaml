@@ -44,3 +44,5 @@ flutter:
     # Yazı tipleri pakete gömülü — ilk açılışta internet gerektirmez
     - google_fonts/
     - assets/sounds/
+    # Marka işareti: brand/hophop-icon.svg'den üretilir (brand/render.sh)
+    - assets/brand/

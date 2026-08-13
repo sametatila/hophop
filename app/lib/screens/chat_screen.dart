@@ -361,7 +361,11 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Avatar(user: widget.friend, radius: 18),
+            Avatar(
+                user: widget.friend,
+                radius: 18,
+                viewable: true,
+                heroTag: 'avatar-chat-${widget.friend.id}'),
             const SizedBox(width: 8),
             Expanded(
               child: Column(

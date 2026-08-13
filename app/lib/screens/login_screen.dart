@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/bootstrap.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/hop_ui.dart';
+import '../widgets/hop_logo.dart';
 import 'onboarding_screen.dart';
 
 /// Giriş: ad + soyad + doğum tarihi. Başarılı girişten sonra oturum güvenli
@@ -85,23 +86,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Marka: degrade halka içinde tavşan
-                      Container(
-                        padding: const EdgeInsets.all(26),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(colors: Hop.gradient),
-                          boxShadow: [
-                            BoxShadow(
-                                color:
-                                    Hop.gradient.last.withValues(alpha: 0.35),
-                                blurRadius: 30,
-                                offset: const Offset(0, 8)),
-                          ],
-                        ),
-                        child: const Icon(Icons.cruelty_free,
-                            size: 64, color: Colors.white),
-                      )
+                      // Marka: uygulamanın kendi ikonu (telefonun ana
+                      // ekranındaki simgeyle birebir aynı tavşan)
+                      const HopLogo(size: 112)
                           .animate(
                               onPlay: (c) => c.repeat(reverse: true))
                           .scale(
