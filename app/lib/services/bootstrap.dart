@@ -3,6 +3,7 @@ import 'api_client.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
 import 'foreground_service.dart';
+import 'ring_listener.dart';
 
 /// Oturum hazır olduğunda (açılışta ya da yeni girişte) çalışır:
 /// E2EE açık anahtarı ve FCM token'ı sunucuya yazar, ön plan servisini başlatır.
@@ -14,6 +15,7 @@ Future<void> postLoginSetup() async {
   } catch (_) {/* çevrimdışı — sonraki açılışta tekrar denenir */}
   await FcmService.registerToken();
   ActivityStore.init(); // rozetler: okunmamış + cevapsız (arka planda tazelenir)
+  RingListener.start(); // gerçek-zamanlı yedek zil yolu (FCM'den bağımsız)
   try {
     await ForegroundService.start();
   } catch (_) {}

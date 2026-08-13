@@ -1,8 +1,9 @@
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-/// Sessiz, minimum önemde kalıcı bildirimle uygulamayı ayakta tutar.
-/// FCM zaten uygulama kapalıyken de çalışır; bu servis agresif OEM'lerde
-/// (Xiaomi/Oppo/Vivo…) sürecin öldürülme olasılığını azaltan ek sigortadır.
+/// Sessiz, minimum önemde kalıcı bildirimle süreci ayakta tutar.
+/// Süreç canlı kaldıkça hem FCM teslimi güvenilirleşir hem de ana isolate'teki
+/// GERÇEK-ZAMANLI zil dinleyicisi (RingListener) bağlı kalır — yoklama yok,
+/// ücretsiz kotalara ek yük binmez.
 class ForegroundService {
   static Future<void> start() async {
     FlutterForegroundTask.init(
@@ -20,7 +21,7 @@ class ForegroundService {
     );
     if (await FlutterForegroundTask.isRunningService) return;
     await FlutterForegroundTask.startService(
-      notificationTitle: 'HopHop hazır 🐇',
+      notificationTitle: 'HopHop hazır',
       notificationText: 'Seni arayanlar için bekliyor',
       callback: _startCallback,
     );

@@ -8,6 +8,7 @@ import 'models/models.dart';
 import 'screens/incoming_call_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell.dart';
+import 'services/activity_store.dart';
 import 'services/auth_service.dart';
 import 'services/bootstrap.dart';
 import 'theme/hop_theme.dart';
@@ -62,13 +63,29 @@ class HopHopApp extends StatefulWidget {
   State<HopHopApp> createState() => _HopHopAppState();
 }
 
-class _HopHopAppState extends State<HopHopApp> {
+class _HopHopAppState extends State<HopHopApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     CallManager.init();
     if (widget.loggedIn) {
       _postLoginSetup();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Öne gelir gelmez: bekleyen arama var mı (anında çaldır) + rozetleri tazele.
+      CallManager.checkPendingRing();
+      ActivityStore.refresh();
     }
   }
 

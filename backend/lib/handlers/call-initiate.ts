@@ -33,17 +33,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const me = toPublicProfile(meSnap);
   const callerName = `${me.firstName} ${me.lastName}`;
   const roomName = `${pairId(userId, calleeId)}_${randomBytes(6).toString('hex')}`;
-  const token = await roomToken(roomName, userId, callerName);
 
-  await pushToUser(calleeId, {
+  const ringPayload = {
     type: 'incoming_call',
     roomName,
     callerId: userId,
     callerName,
     video: video ? '1' : '0',
-    callerPublicKey: meSnap.get('publicKey') ?? '',
+    callerPublicKey: (meSnap.get('publicKey') as string) ?? '',
     roomKeyEnc,
-  });
+  };
+
+  // Güvenilirlik: çalan arama sunucuya da yazılır — push kaybolsa bile
+  // aranan cihaz yoklama (polling) ile aramayı yakalar.
+  const [token] = await Promise.all([
+    roomToken(roomName, userId, callerName),
+    pushToUser(calleeId, ringPayload),
+    db().collection('rings').doc(calleeId).set({ ...ringPayload, atMs: Date.now() }),
+  ]);
 
   return res.status(200).json({
     roomName,

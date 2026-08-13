@@ -3,6 +3,7 @@ import { requireAuth } from '../auth.js';
 import { areFriends } from '../users.js';
 import { pushToUser } from '../fcm.js';
 import { requireMethod, badRequest, str } from '../http.js';
+import { db } from '../firebase.js';
 import { logCallEvent } from './call-respond.js';
 
 /** POST /api/call/cancel { roomName, calleeId } — caller gave up; stop ringing. */
@@ -19,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'not_friends' });
   }
 
-  // Cevapsız arama: hem karşı cihaza sinyal hem sohbet akışına kayıt.
+  // Cevapsız arama: karşı cihaza sinyal + sohbet kaydı + yedek zil temizliği.
   await Promise.all([
     pushToUser(calleeId, {
       type: 'call_cancelled',
@@ -27,6 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       callerId: userId,
     }),
     logCallEvent({ callerId: userId, calleeId, video, outcome: 'missed' }),
+    db().collection('rings').doc(calleeId).delete().catch(() => {}),
   ]);
   return res.status(200).json({ ok: true });
 }

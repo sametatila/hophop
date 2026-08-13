@@ -29,9 +29,34 @@ class CallManager {
   static bool _inCall = false;
   static ActiveCall? activeCall;
 
+  /// Şu an çalan odanın adı — FCM ve dinleyici yolları aynı aramayı iki kez
+  /// çaldırmasın diye ortak koruma.
+  static String? _ringingRoom;
+
   static void init() {
     _sub?.cancel();
     _sub = FcmService.callEvents.stream.listen(_onCallEvent);
+  }
+
+  /// Gerçek-zamanlı dinleyiciden ya da yoklamadan gelen aramayı çaldırır.
+  /// Oda adına göre çift-çalma koruması içerir.
+  static Future<void> handleRing(IncomingCall ring) async {
+    if (_inCall || ring.roomName == _ringingRoom) return;
+    _ringingRoom = ring.roomName;
+    await NotificationService.showIncomingCall(ring); // zil + bildirim
+    _nav?.push(MaterialPageRoute(
+      builder: (_) => IncomingCallScreen(call: ring),
+      fullscreenDialog: true,
+    ));
+  }
+
+  /// Sunucuya "beni arayan var mı?" diye sorar (öne geliş/açılış anı için).
+  static Future<void> checkPendingRing() async {
+    if (_inCall) return;
+    try {
+      final ring = await api.pendingCall();
+      if (ring != null) await handleRing(ring);
+    } catch (_) {/* çevrimdışı */}
   }
 
   static NavigatorState? get _nav => navigatorKey.currentState;
@@ -42,12 +67,15 @@ class CallManager {
       case 'incoming_call':
         if (_inCall) return; // meşgul — bildirim zaten gösterildi, kendi kendine düşer
         final call = IncomingCall.fromData(data);
+        if (call.roomName == _ringingRoom) return; // yoklama yolu önce yakaladı
+        _ringingRoom = call.roomName;
         _nav?.push(MaterialPageRoute(
           builder: (_) => IncomingCallScreen(call: call),
           fullscreenDialog: true,
         ));
       case 'call_cancelled':
         await NotificationService.cancelIncomingCall();
+        _ringingRoom = null;
         if (!_inCall) {
           final callerId = data['callerId'] as String?;
           if (callerId != null) ActivityStore.recordMissed(callerId);
@@ -174,6 +202,7 @@ class CallManager {
   /// gelir (arada ana ekran görünmez). Başarısız olursa false döner.
   static Future<bool> answerIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
+    _ringingRoom = null;
     try {
       final r = await api.respondCall(call.roomName, call.callerId, true, call.video);
       if (call.callerPublicKey.isEmpty || call.roomKeyEnc.isEmpty) {
@@ -208,6 +237,7 @@ class CallManager {
 
   static Future<void> rejectIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
+    _ringingRoom = null;
     try {
       await api.respondCall(call.roomName, call.callerId, false, call.video);
     } catch (_) {}

@@ -1,9 +1,13 @@
 rules_version = '2';
-// HopHop: istemciler Firestore'a ASLA doğrudan erişmez.
-// Tüm okuma/yazma Vercel API'sindeki Admin SDK üzerinden yapılır
-// (Admin SDK bu kurallardan muaftır). Bu kurallar her şeyi kapatır.
+// HopHop: istemciler yalnızca KENDİ zil belgelerini gerçek zamanlı dinler
+// (uid, sunucunun ürettiği özel token'dan gelir). Diğer her şey kapalı;
+// tüm yazma/okuma Vercel API'sindeki Admin SDK üzerinden yapılır.
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /rings/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

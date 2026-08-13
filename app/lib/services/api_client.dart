@@ -156,6 +156,20 @@ class ApiClient {
       _request('POST', '/api/call/cancel',
           {'roomName': roomName, 'calleeId': calleeId, 'video': video});
 
+  /// Gerçek-zamanlı zil dinleyicisi için Firebase özel token'ı.
+  Future<String> firebaseToken() async {
+    final r = await _request('GET', '/api/firebase-token');
+    return r['token'] as String;
+  }
+
+  /// FCM'den bağımsız yedek zil yolu: beni şu anda arayan var mı?
+  Future<IncomingCall?> pendingCall() async {
+    final r = await _request('GET', '/api/call/pending');
+    final ring = r['ring'];
+    if (ring == null) return null;
+    return IncomingCall.fromData(Map<String, dynamic>.from(ring as Map));
+  }
+
   /// Süren aramaya davet (grup arama, en fazla 6 kişi).
   Future<void> inviteToCall(
           String roomName, String calleeId, bool video, String roomKeyEnc) =>

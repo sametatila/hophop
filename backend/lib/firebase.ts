@@ -1,4 +1,5 @@
 import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getMessaging, Messaging } from 'firebase-admin/messaging';
 
@@ -24,4 +25,10 @@ export function db(): Firestore {
 
 export function messaging(): Messaging {
   return getMessaging(app());
+}
+
+/** İstemcinin rings/{uid} belgesini GERÇEK ZAMANLI dinleyebilmesi için
+ * kullanıcıya özel Firebase özel token'ı (uid = bizim kullanıcı kimliğimiz). */
+export function firebaseCustomToken(userId: string): Promise<string> {
+  return getAuth(app()).createCustomToken(userId);
 }

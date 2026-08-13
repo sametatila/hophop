@@ -54,15 +54,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   ]);
   if (!friends) return res.status(403).json({ error: 'not_friends' });
 
+  // Arama sonuçlandı — yedek zil kaydı temizlenir.
+  const clearRing = db().collection('rings').doc(userId).delete().catch(() => {});
+
   if (!accept) {
     await Promise.all([
       pushToUser(callerId, { type: 'call_rejected', roomName }),
       logCallEvent({ callerId, calleeId: userId, video, outcome: 'missed' }),
+      clearRing,
     ]);
     return res.status(200).json({ ok: true });
   }
 
-  await logCallEvent({ callerId, calleeId: userId, video, outcome: 'answered' });
+  await Promise.all([
+    logCallEvent({ callerId, calleeId: userId, video, outcome: 'answered' }),
+    clearRing,
+  ]);
   const me = toPublicProfile(meSnap);
   const token = await roomToken(roomName, userId, `${me.firstName} ${me.lastName}`);
 
