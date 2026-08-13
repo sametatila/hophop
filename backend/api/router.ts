@@ -39,11 +39,11 @@ const routes: Record<string, Handler> = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Yol, sorgu parametresine güvenmeden doğrudan URL'den türetilir —
-  // Vercel'in dinamik segment aktarımı çalışma zamanına göre değişebiliyor.
-  const path = (req.url ?? '')
-    .split('?')[0]
-    .replace(/^\/api\/?/, '')
+  // Yol önce rewrite'ın taşıdığı ?p= parametresinden, o yoksa URL'den okunur.
+  const p = req.query.p;
+  const fromQuery = Array.isArray(p) ? p.join('/') : p;
+  const path = (fromQuery ??
+    (req.url ?? '').split('?')[0].replace(/^\/api\/?/, ''))
     .replace(/\/+$/, '');
   const route = routes[path];
   if (!route) return res.status(404).json({ error: 'not_found' });

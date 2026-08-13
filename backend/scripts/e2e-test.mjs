@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'fs';
 
-const API = process.argv[2] ?? 'https://hophop-kappa.vercel.app';
+const API = process.argv[2] ?? 'https://hophop.exfe.me';
 const env = Object.fromEntries(
   readFileSync(new URL('../.env', import.meta.url), 'utf8').split('\n')
     .filter((l) => l.includes('=') && !l.trim().startsWith('#'))

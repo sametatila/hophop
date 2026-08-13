@@ -1,4 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/router?p=:path*" }
+  ]
 }
