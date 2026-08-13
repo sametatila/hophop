@@ -61,7 +61,9 @@ ThemeData hopTheme(HopMode mode) {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+      toolbarHeight: kid ? 72 : 64,
+      titleTextStyle: (kid ? text.headlineMedium : text.headlineSmall)
+          ?.copyWith(fontWeight: FontWeight.w800),
       iconTheme: IconThemeData(color: scheme.onSurface),
     ),
     cardTheme: CardThemeData(

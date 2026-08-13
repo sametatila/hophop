@@ -99,8 +99,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               .map((e) {
             final (icon, title, why) = _labels[e.key]!;
             final ok = e.value.isGranted;
-            return Card(
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Card(
               child: ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 leading: Icon(icon, size: 30),
                 title: Text(title),
                 subtitle: Text(why),
@@ -113,6 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                         child: const Text('Düzelt'),
                       ),
+              ),
               ),
             );
           }),

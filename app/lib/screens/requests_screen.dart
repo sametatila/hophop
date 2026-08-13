@@ -77,16 +77,19 @@ class _RequestsScreenState extends State<RequestsScreen> {
                             'Kişiler sekmesinden aileni ekleyebilirsin.'),
                   ])
                 : ListView(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.move_to_inbox),
-                      SizedBox(width: 8),
-                      Text('Gelen istekler',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Icon(Icons.move_to_inbox),
+                        SizedBox(width: 8),
+                        Text('Gelen istekler',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
                   if (_incoming.isEmpty)
                     const Padding(
@@ -94,7 +97,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       child: Text('Bekleyen istek yok'),
                     ),
                   ..._incoming.map((e) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Card(
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
@@ -132,30 +135,40 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         ),
                       ).animate().fadeIn(duration: Hop.normal).slideX(
                           begin: 0.06, curve: Curves.easeOutCubic)),
-                  const SizedBox(height: 24),
-                  const Row(
-                    children: [
-                      Icon(Icons.outbox),
-                      SizedBox(width: 8),
-                      Text('Gönderilen istekler',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
+                  const Padding(
+                    padding: EdgeInsets.only(top: 24, bottom: 10),
+                    child: Row(
+                      children: [
+                        Icon(Icons.outbox),
+                        SizedBox(width: 8),
+                        Text('Gönderilen istekler',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
                   if (_outgoing.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(16),
                       child: Text('Bekleyen istek yok'),
                     ),
-                  ..._outgoing.map((e) => Card(
-                        child: ListTile(
-                          leading:
-                              e.user != null ? Avatar(user: e.user!) : null,
-                          title: Text(e.user?.fullName ?? '—'),
-                          subtitle: const Text('Cevap bekleniyor…'),
-                          trailing: TextButton(
-                            onPressed: () => _cancel(e),
-                            child: const Text('İptal'),
+                  ..._outgoing.map((e) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Card(
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 6),
+                            leading: e.user != null
+                                ? Avatar(user: e.user!, radius: 26)
+                                : null,
+                            title: Text(e.user?.fullName ?? '—',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            subtitle: const Text('Cevap bekleniyor…'),
+                            trailing: TextButton(
+                              onPressed: () => _cancel(e),
+                              child: const Text('İptal'),
+                            ),
                           ),
                         ),
                       )),
