@@ -16,6 +16,9 @@ class AuthService {
 
   UserProfile? me;
 
+  /// Arka plan isolate'i için: oturum token'ını doğrudan okur.
+  static Future<String?> readToken() => _storage.read(key: _kToken);
+
   /// Uygulama açılışında çağrılır. true → oturum var, giriş ekranı atlanır.
   Future<bool> restore() async {
     final token = await _storage.read(key: _kToken);

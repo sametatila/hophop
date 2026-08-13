@@ -196,6 +196,10 @@ class ApiClient {
         .toList();
   }
 
+  /// "Yazıyor…" sinyali (kısılmış — sohbet ekranı ~4 sn'de bir yollar).
+  Future<void> sendTyping(String toUserId) =>
+      _request('POST', '/api/messages/typing', {'toUserId': toUserId});
+
   /// Ana ekran rozetleri: her arkadaş için okunmamış sayısı + son mesaj bilgisi.
   Future<List<({String withUserId, int lastMs, bool lastFromMe, int unread})>>
       messagesSummary(Map<String, int> lastRead) async {

@@ -18,6 +18,7 @@ import adminUsers from '../lib/handlers/admin-users.js';
 import messagesSend from '../lib/handlers/messages-send.js';
 import messagesList from '../lib/handlers/messages-list.js';
 import messagesSummary from '../lib/handlers/messages-summary.js';
+import messagesTyping from '../lib/handlers/messages-typing.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown;
 
@@ -38,6 +39,7 @@ const routes: Record<string, Handler> = {
   'messages/send': messagesSend,
   'messages/list': messagesList,
   'messages/summary': messagesSummary,
+  'messages/typing': messagesTyping,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

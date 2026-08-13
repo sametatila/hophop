@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/models.dart';
 import '../theme/hop_theme.dart';
 import '../services/activity_store.dart';
@@ -25,9 +29,62 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   StreamSubscription? _sub;
+  StreamSubscription? _typingSub;
   Timer? _poll;
+  Timer? _typingExpiry;
   bool _sending = false;
+  bool _loading = true; // ilk ağ yüklemesi bitene dek (önbellek varsa anında biter)
+  bool _peerTyping = false;
   int _lastMs = 0;
+  int _lastTypingSentMs = 0;
+
+  // ---- Yerel sohbet önbelleği: açılışta son konuşma ANINDA görünür ----
+
+  Future<File> _cacheFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/chat_${widget.friend.id}.json');
+  }
+
+  Future<void> _loadCache() async {
+    try {
+      final f = await _cacheFile();
+      if (!await f.exists()) return;
+      final list = jsonDecode(await f.readAsString()) as List;
+      final cached = list
+          .map((m) => ChatMessage(
+                id: m['id'] as String,
+                fromUserId: m['from'] as String,
+                text: m['text'] as String,
+                sentAtMs: (m['at'] as num).toInt(),
+                deliveredAtMs: (m['dlv'] as num?)?.toInt(),
+              ))
+          .toList();
+      if (cached.isNotEmpty && mounted && _messages.isEmpty) {
+        setState(() {
+          _messages.addAll(cached);
+          _loading = false; // önbellek geldi — iskelet yerine gerçek içerik
+        });
+        _scrollToEnd();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveCache() async {
+    try {
+      final f = await _cacheFile();
+      final data = _messages
+          .where((m) => !m.pending)
+          .map((m) => {
+                'id': m.id,
+                'from': m.fromUserId,
+                'text': m.text,
+                'at': m.sentAtMs,
+                'dlv': m.deliveredAtMs,
+              })
+          .toList();
+      await f.writeAsString(jsonEncode(data));
+    } catch (_) {}
+  }
 
   String get _pairContext {
     final ids = [auth.me!.id, widget.friend.id]..sort();
@@ -37,19 +94,40 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadCache().then((_) => _load());
     // Uygulama açıkken gelen mesajlar FCM ile anında düşer; push kaçarsa
     // hafif bir tazeleme döngüsü açığı kapatır.
     _sub = FcmService.messageEvents.stream.listen((m) {
-      if (m.data['fromUserId'] == widget.friend.id) _load();
+      if (m.data['fromUserId'] == widget.friend.id) {
+        setState(() => _peerTyping = false); // mesaj geldi → yazıyor söner
+        _load();
+      }
+    });
+    _typingSub = FcmService.typingEvents.stream.listen((m) {
+      if (m.data['fromUserId'] != widget.friend.id) return;
+      setState(() => _peerTyping = true);
+      _typingExpiry?.cancel();
+      _typingExpiry = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _peerTyping = false);
+      });
     });
     _poll = Timer.periodic(const Duration(seconds: 15), (_) => _load());
+  }
+
+  /// Kullanıcı yazarken karşı tarafa kısılmış "yazıyor" sinyali (4 sn'de bir).
+  void _onTyping(String _) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastTypingSentMs < 4000) return;
+    _lastTypingSentMs = now;
+    api.sendTyping(widget.friend.id).catchError((_) {});
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _typingSub?.cancel();
     _poll?.cancel();
+    _typingExpiry?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -98,11 +176,44 @@ class _ChatScreenState extends State<ChatScreen> {
         ..addAll(server)
         ..addAll(pendings);
       await ActivityStore.markRead(widget.friend.id, _lastMs);
+      _saveCache();
       if (mounted) {
-        setState(() {});
+        setState(() => _loading = false);
         _scrollToEnd();
       }
-    } catch (_) {/* çevrimdışı — döngü tekrar dener */}
+    } catch (_) {
+      // çevrimdışı — önbellek/iskelet yerinde kalır, döngü tekrar dener
+      if (mounted && _messages.isNotEmpty) setState(() => _loading = false);
+    }
+  }
+
+  /// Yüklenirken gösterilen nabızlı iskelet baloncuklar.
+  Widget _skeleton(ThemeData theme) {
+    final c = theme.colorScheme.surfaceContainerHighest;
+    Widget bubble(bool mine, double w) => Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 5),
+            width: w,
+            height: 44,
+            decoration: BoxDecoration(
+              color: c,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        );
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        bubble(false, 190),
+        bubble(true, 150),
+        bubble(false, 230),
+        bubble(true, 120),
+        bubble(false, 170),
+      ]
+          .animate(onPlay: (ctrl) => ctrl.repeat(reverse: true))
+          .fade(begin: 0.45, end: 1.0, duration: 700.ms),
+    );
   }
 
   void _scrollToEnd() {
@@ -170,8 +281,25 @@ class _ChatScreenState extends State<ChatScreen> {
             Avatar(user: widget.friend, radius: 18),
             const SizedBox(width: 8),
             Expanded(
-                child:
-                    Text(widget.friend.fullName, overflow: TextOverflow.ellipsis)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(widget.friend.fullName,
+                      overflow: TextOverflow.ellipsis),
+                  if (_peerTyping)
+                    Text(
+                      'yazıyor…',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary),
+                    )
+                        .animate(onPlay: (c) => c.repeat(reverse: true))
+                        .fade(begin: 0.5, end: 1, duration: 600.ms),
+                ],
+              ),
+            ),
           ],
         ),
         actions: const [
@@ -187,20 +315,23 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.forum,
-                            size: 56, color: theme.colorScheme.outline),
-                        const SizedBox(height: 8),
-                        Text('İlk mesajı sen gönder!',
-                            style: TextStyle(color: theme.colorScheme.outline)),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
+            child: _loading && _messages.isEmpty
+                ? _skeleton(theme) // yüklenirken boş durum DEĞİL, iskelet
+                : _messages.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.forum,
+                                size: 56, color: theme.colorScheme.outline),
+                            const SizedBox(height: 8),
+                            Text('İlk mesajı sen gönder!',
+                                style: TextStyle(
+                                    color: theme.colorScheme.outline)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.all(12),
                     itemCount: _messages.length,
@@ -289,6 +420,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _input,
+                      onChanged: _onTyping,
                       textCapitalization: TextCapitalization.sentences,
                       minLines: 1,
                       maxLines: 4,

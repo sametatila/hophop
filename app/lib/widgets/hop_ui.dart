@@ -162,19 +162,31 @@ class _PulseRingState extends State<PulseRing>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            for (final offset in [0.0, 0.5])
-              _ring((_controller.value + offset) % 1),
-            child!,
-          ],
-        );
-      },
-      child: widget.child,
+    // Sabit ayak izi: halkalar büyürken SAYFA DÜZENİNİ ASLA itmez —
+    // taşan kısım OverflowBox ile düzen hesabının dışında çizilir.
+    final base = widget.radius * 2;
+    return SizedBox(
+      width: base,
+      height: base,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              for (final offset in [0.0, 0.5])
+                OverflowBox(
+                  maxWidth: double.infinity,
+                  maxHeight: double.infinity,
+                  child: _ring((_controller.value + offset) % 1),
+                ),
+              child!,
+            ],
+          );
+        },
+        child: Center(child: widget.child),
+      ),
     );
   }
 

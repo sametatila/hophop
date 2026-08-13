@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/models.dart';
 import 'activity_store.dart';
 import 'api_client.dart';
+import 'auth_service.dart';
 import 'notification_service.dart';
 
 /// FCM data mesajlarının yönlendirilmesi.
@@ -19,6 +20,17 @@ class FcmService {
 
   /// Gelen mesaj olayları (açık ChatScreen anında güncellenir).
   static final messageEvents = StreamController<RemoteMessage>.broadcast();
+
+  /// "Yazıyor…" olayları (yalnızca uygulama açıkken anlamlı).
+  static final typingEvents = StreamController<RemoteMessage>.broadcast();
+
+  /// Mesaj cihaza ulaştı → sunucuda "iletildi" damgası (✓✓) bassın diye
+  /// alıcı taraf sessizce listeyi çeker. Gönderen bir sonraki tazelemede görür.
+  static Future<void> ackDelivery(String fromUserId) async {
+    try {
+      await api.listMessages(fromUserId);
+    } catch (_) {}
+  }
 
   static Future<void> init() async {
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
@@ -70,13 +82,17 @@ class FcmService {
         );
       case 'new_message':
         messageEvents.add(message);
-        ActivityStore.onIncomingMessage(message.data['fromUserId'] as String);
+        final from = message.data['fromUserId'] as String;
+        ActivityStore.onIncomingMessage(from);
+        ackDelivery(from); // ✓✓ — cihaz aldı, sohbet açılmasa da iletildi olur
         // İçerik bildirimde gösterilmez (uçtan uca şifreli — yalnızca gönderen adı).
         await NotificationService.showGeneral(
           2003,
           message.data['fromName'] as String? ?? 'Yeni mesaj',
           'Sana bir mesaj gönderdi',
         );
+      case 'typing':
+        typingEvents.add(message);
     }
   }
 }
@@ -116,5 +132,12 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         message.data['fromName'] as String? ?? 'Yeni mesaj',
         'Sana bir mesaj gönderdi',
       );
+      // Uygulama kapalıyken de "iletildi" (✓✓) damgalansın.
+      final token = await AuthService.readToken();
+      final from = message.data['fromUserId'] as String?;
+      if (token != null && from != null) {
+        api.setToken(token);
+        await FcmService.ackDelivery(from);
+      }
   }
 }
