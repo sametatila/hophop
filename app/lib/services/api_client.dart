@@ -168,8 +168,15 @@ class ApiClient {
     return r['messageId'] as String;
   }
 
-  Future<List<({String id, String fromUserId, String ciphertext, int sentAtMs})>>
-      listMessages(String withUserId, {int afterMs = 0}) async {
+  Future<
+      List<
+          ({
+            String id,
+            String fromUserId,
+            String ciphertext,
+            int sentAtMs,
+            int? deliveredAtMs
+          })>> listMessages(String withUserId, {int afterMs = 0}) async {
     final r = await _request(
         'GET', '/api/messages/list?withUserId=$withUserId&afterMs=$afterMs');
     return (r['messages'] as List)
@@ -178,6 +185,22 @@ class ApiClient {
               fromUserId: m['fromUserId'] as String,
               ciphertext: m['ciphertext'] as String,
               sentAtMs: (m['sentAtMs'] as num).toInt(),
+              deliveredAtMs: (m['deliveredAtMs'] as num?)?.toInt(),
+            ))
+        .toList();
+  }
+
+  /// Ana ekran rozetleri: her arkadaş için okunmamış sayısı + son mesaj bilgisi.
+  Future<List<({String withUserId, int lastMs, bool lastFromMe, int unread})>>
+      messagesSummary(Map<String, int> lastRead) async {
+    final r =
+        await _request('POST', '/api/messages/summary', {'lastRead': lastRead});
+    return (r['summaries'] as List)
+        .map((s) => (
+              withUserId: s['withUserId'] as String,
+              lastMs: (s['lastMs'] as num).toInt(),
+              lastFromMe: s['lastFromMe'] as bool,
+              unread: (s['unread'] as num).toInt(),
             ))
         .toList();
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/models.dart';
+import 'activity_store.dart';
 import 'api_client.dart';
 import 'notification_service.dart';
 
@@ -69,6 +70,7 @@ class FcmService {
         );
       case 'new_message':
         messageEvents.add(message);
+        ActivityStore.onIncomingMessage(message.data['fromUserId'] as String);
         // İçerik bildirimde gösterilmez (uçtan uca şifreli — yalnızca gönderen adı).
         await NotificationService.showGeneral(
           2003,
@@ -91,6 +93,11 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
           IncomingCall.fromData(message.data));
     case 'call_cancelled':
       await NotificationService.cancelIncomingCall();
+      // Cevapsız arama: arka planda dosyaya işlenir, açılışta rozete döner.
+      final callerId = message.data['callerId'] as String?;
+      if (callerId != null) {
+        await ActivityStore.recordMissedInBackground(callerId);
+      }
     case 'friend_request':
       await NotificationService.showGeneral(
         2001,

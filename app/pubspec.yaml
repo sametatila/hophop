@@ -36,3 +36,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Yazı tipleri pakete gömülü — ilk açılışta internet gerektirmez
+    - google_fonts/

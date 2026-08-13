@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../screens/call_screen.dart';
 import '../screens/incoming_call_screen.dart';
 import '../screens/outgoing_call_screen.dart';
+import 'activity_store.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
 import 'call_service.dart';
@@ -47,6 +48,10 @@ class CallManager {
         ));
       case 'call_cancelled':
         await NotificationService.cancelIncomingCall();
+        if (!_inCall) {
+          final callerId = data['callerId'] as String?;
+          if (callerId != null) ActivityStore.recordMissed(callerId);
+        }
         _popIfCurrent<IncomingCallScreen>();
       case 'call_rejected':
         _popIfCurrent<OutgoingCallScreen>();
@@ -72,6 +77,8 @@ class CallManager {
     if (_inCall) return;
     final nav = _nav;
     if (nav == null) return;
+    ActivityStore.clearMissed(friend.id); // geri arama rozeti temizler
+    ActivityStore.bumpActivity(friend.id);
 
     final publicKey = friend.publicKey;
     if (publicKey == null || publicKey.isEmpty) {

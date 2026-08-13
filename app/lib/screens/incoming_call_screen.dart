@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../models/models.dart';
+import '../services/activity_store.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
 import '../theme/hop_theme.dart';
@@ -28,7 +29,10 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   void initState() {
     super.initState();
     _timeout = Timer(ringTimeout, () {
-      if (mounted && !_connecting) Navigator.of(context).pop();
+      if (mounted && !_connecting) {
+        ActivityStore.recordMissed(widget.call.callerId); // cevapsız
+        Navigator.of(context).pop();
+      }
     });
     AuthService.cachedFriends().then((friends) {
       final match =

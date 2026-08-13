@@ -119,10 +119,18 @@ class ChatMessage {
   final String text;
   final int sentAtMs;
 
+  /// Karşı cihaza ulaştı mı (✓✓). null → yalnızca sunucuda (✓).
+  int? deliveredAtMs;
+
+  /// true → henüz sunucuya gitmedi (iyimser gösterim, saat simgesi).
+  bool pending;
+
   ChatMessage({
     required this.id,
     required this.fromUserId,
     required this.text,
     required this.sentAtMs,
+    this.deliveredAtMs,
+    this.pending = false,
   });
 }

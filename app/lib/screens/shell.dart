@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/activity_store.dart';
 import 'home_screen.dart';
 import 'contacts_screen.dart';
 import 'requests_screen.dart';
@@ -39,15 +40,34 @@ class _ShellState extends State<Shell> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: 'Arkadaşlar'),
-          NavigationDestination(icon: Icon(Icons.people), label: 'Kişiler'),
-          NavigationDestination(icon: Icon(Icons.mail), label: 'İstekler'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Ayarlar'),
-        ],
+      bottomNavigationBar: ListenableBuilder(
+        listenable:
+            Listenable.merge([ActivityStore.unread, ActivityStore.missed]),
+        builder: (context, _) {
+          final total = ActivityStore.unread.value.values
+                  .fold(0, (a, b) => a + b) +
+              ActivityStore.missed.value.values.fold(0, (a, b) => a + b);
+          return NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            destinations: [
+              NavigationDestination(
+                icon: Badge(
+                  isLabelVisible: total > 0,
+                  label: Text('$total'),
+                  child: const Icon(Icons.home),
+                ),
+                label: 'Arkadaşlar',
+              ),
+              const NavigationDestination(
+                  icon: Icon(Icons.people), label: 'Kişiler'),
+              const NavigationDestination(
+                  icon: Icon(Icons.mail), label: 'İstekler'),
+              const NavigationDestination(
+                  icon: Icon(Icons.settings), label: 'Ayarlar'),
+            ],
+          );
+        },
       ),
     );
   }

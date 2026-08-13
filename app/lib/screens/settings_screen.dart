@@ -121,6 +121,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             );
           }),
+          if (_aggressiveOem) ...[
+            const SizedBox(height: 12),
+            Card(
+              color: Colors.amber.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.rocket_launch, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Text('Otomatik başlatma (önemli)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Bu telefon markası, yeniden başlatmadan sonra uygulamaları '
+                      'kendiliğinden çalıştırmayabilir. Aramaları hiç kaçırmamak için '
+                      'telefonun ayarlarında HopHop için "Otomatik başlat" iznini aç:\n'
+                      '1. Aşağıdaki butonla uygulama ayarlarını aç\n'
+                      '2. "Otomatik başlat" / "Autostart" seçeneğini bul ve aç\n'
+                      '3. Bulamazsan: Telefon Ayarları → Uygulamalar → HopHop',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton.tonalIcon(
+                      onPressed: openAppSettings,
+                      icon: const Icon(Icons.settings_applications, size: 18),
+                      label: const Text('Uygulama ayarlarını aç'),
+                      style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           Card(
             color: Colors.blue.shade50,

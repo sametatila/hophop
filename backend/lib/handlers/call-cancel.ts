@@ -17,6 +17,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'not_friends' });
   }
 
-  await pushToUser(calleeId, { type: 'call_cancelled', roomName });
+  // Cevapsız arama kaydı tutulabilsin diye arayan bilgisi de taşınır.
+  await pushToUser(calleeId, {
+    type: 'call_cancelled',
+    roomName,
+    callerId: userId,
+  });
   return res.status(200).json({ ok: true });
 }

@@ -1,3 +1,4 @@
+import 'activity_store.dart';
 import 'api_client.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
@@ -12,6 +13,7 @@ Future<void> postLoginSetup() async {
     await api.updateMe(publicKey: publicKey);
   } catch (_) {/* çevrimdışı — sonraki açılışta tekrar denenir */}
   await FcmService.registerToken();
+  ActivityStore.init(); // rozetler: okunmamış + cevapsız (arka planda tazelenir)
   try {
     await ForegroundService.start();
   } catch (_) {}

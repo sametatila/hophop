@@ -28,11 +28,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .limit(limit)
     .get();
 
+  // "İletildi": bana gelen ve alıcı cihazca ilk kez çekilen mesajlar işaretlenir.
+  const now = Date.now();
+  const batch = db().batch();
+  let dirty = false;
+  for (const d of snap.docs) {
+    if (d.get('toUserId') === userId && !d.get('deliveredAtMs')) {
+      batch.update(d.ref, { deliveredAtMs: now });
+      dirty = true;
+    }
+  }
+  if (dirty) await batch.commit();
+
   const messages = snap.docs.map((d) => ({
     id: d.id,
     fromUserId: d.get('fromUserId'),
     ciphertext: d.get('ciphertext'),
     sentAtMs: d.get('sentAtMs'),
+    deliveredAtMs:
+      d.get('deliveredAtMs') ??
+      (d.get('toUserId') === userId ? now : null),
   }));
 
   return res.status(200).json({ messages });

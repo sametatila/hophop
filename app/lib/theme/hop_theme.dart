@@ -47,10 +47,18 @@ ThemeData hopTheme(HopMode mode) {
     surface: kid ? const Color(0xFFFFF6F0) : const Color(0xFFF6F6FB),
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme);
-  final text = (kid
-          ? GoogleFonts.quicksandTextTheme(base.textTheme)
-          : GoogleFonts.manropeTextTheme(base.textTheme))
-      .apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
+  // Google Fonts ilk açılışta internetten iner; inemezse (çevrimdışı/test)
+  // sistem yazı tipine sessizce düşülür — tema asla kırılmaz.
+  TextTheme fontTheme;
+  try {
+    fontTheme = kid
+        ? GoogleFonts.quicksandTextTheme(base.textTheme)
+        : GoogleFonts.manropeTextTheme(base.textTheme);
+  } catch (_) {
+    fontTheme = base.textTheme;
+  }
+  final text = fontTheme.apply(
+      bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
   final radius = kid ? 26.0 : 18.0;
 
   return base.copyWith(

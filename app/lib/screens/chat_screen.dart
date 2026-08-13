@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../theme/hop_theme.dart';
+import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/crypto_service.dart';
@@ -54,27 +55,42 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  final _decryptCache = <String, String>{};
+
   Future<void> _load() async {
     final publicKey = widget.friend.publicKey;
     if (publicKey == null) return;
     try {
-      final raw = await api.listMessages(widget.friend.id, afterMs: _lastMs);
-      if (raw.isEmpty) return;
+      // Tam liste çekilir: hem yeni mesajlar gelir hem eskilerin
+      // "iletildi" durumu tazelenir (aile sohbeti — hacim küçük).
+      final raw = await api.listMessages(widget.friend.id);
+      final server = <ChatMessage>[];
       for (final m in raw) {
-        String text;
-        try {
-          text = await crypto.decryptMessage(publicKey, _pairContext, m.ciphertext);
-        } catch (_) {
-          text = '🔒 (çözülemedi)';
+        var text = _decryptCache[m.id];
+        if (text == null) {
+          try {
+            text = await crypto.decryptMessage(
+                publicKey, _pairContext, m.ciphertext);
+          } catch (_) {
+            text = '(çözülemedi)';
+          }
+          _decryptCache[m.id] = text;
         }
-        _messages.add(ChatMessage(
+        server.add(ChatMessage(
           id: m.id,
           fromUserId: m.fromUserId,
           text: text,
           sentAtMs: m.sentAtMs,
+          deliveredAtMs: m.deliveredAtMs,
         ));
         if (m.sentAtMs > _lastMs) _lastMs = m.sentAtMs;
       }
+      final pendings = _messages.where((m) => m.pending).toList();
+      _messages
+        ..clear()
+        ..addAll(server)
+        ..addAll(pendings);
+      await ActivityStore.markRead(widget.friend.id, _lastMs);
       if (mounted) {
         setState(() {});
         _scrollToEnd();
@@ -95,14 +111,30 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _input.text.trim();
     final publicKey = widget.friend.publicKey;
     if (text.isEmpty || publicKey == null || _sending) return;
-    setState(() => _sending = true);
+    _input.clear();
+    // İyimser gösterim: mesaj anında baloncuk olur (saat simgesiyle).
+    final optimistic = ChatMessage(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      fromUserId: auth.me!.id,
+      text: text,
+      sentAtMs: DateTime.now().millisecondsSinceEpoch,
+      pending: true,
+    );
+    setState(() {
+      _sending = true;
+      _messages.add(optimistic);
+    });
+    _scrollToEnd();
     try {
       final sealed = await crypto.encryptMessage(publicKey, _pairContext, text);
       await api.sendMessage(widget.friend.id, sealed);
-      _input.clear();
+      _messages.remove(optimistic); // sunucu kopyası _load ile gelir (✓)
+      ActivityStore.bumpActivity(widget.friend.id);
       await _load();
     } catch (_) {
       if (mounted) {
+        setState(() => _messages.remove(optimistic));
+        _input.text = text; // kaybolmasın
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Mesaj gönderilemedi')));
       }
@@ -190,13 +222,33 @@ class _ChatScreenState extends State<ChatScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(m.text, style: const TextStyle(fontSize: 16)),
-                              Text(
-                                DateFormat('HH:mm').format(
-                                    DateTime.fromMillisecondsSinceEpoch(
-                                        m.sentAtMs)),
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: theme.colorScheme.outline),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    DateFormat('HH:mm').format(
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                            m.sentAtMs)),
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: theme.colorScheme.outline),
+                                  ),
+                                  if (mine) ...[
+                                    const SizedBox(width: 4),
+                                    // saat: gönderiliyor · ✓ sunucuda · ✓✓ karşı cihazda
+                                    Icon(
+                                      m.pending
+                                          ? Icons.schedule
+                                          : (m.deliveredAtMs != null
+                                              ? Icons.done_all
+                                              : Icons.done),
+                                      size: 14,
+                                      color: m.deliveredAtMs != null
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.outline,
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),

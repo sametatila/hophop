@@ -17,6 +17,7 @@ import adminAddUser from '../lib/handlers/admin-add-user.js';
 import adminUsers from '../lib/handlers/admin-users.js';
 import messagesSend from '../lib/handlers/messages-send.js';
 import messagesList from '../lib/handlers/messages-list.js';
+import messagesSummary from '../lib/handlers/messages-summary.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown;
 
@@ -36,6 +37,7 @@ const routes: Record<string, Handler> = {
   'admin/users': adminUsers,
   'messages/send': messagesSend,
   'messages/list': messagesList,
+  'messages/summary': messagesSummary,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

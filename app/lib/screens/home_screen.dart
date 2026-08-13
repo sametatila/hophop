@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 import '../models/models.dart';
+import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
@@ -20,11 +22,46 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<UserProfile> _friends = [];
   bool _loading = true;
+  late final Listenable _activity;
 
   @override
   void initState() {
     super.initState();
+    _activity = Listenable.merge(
+        [ActivityStore.unread, ActivityStore.missed, ActivityStore.lastActivity]);
+    _activity.addListener(_onActivity);
     _load();
+  }
+
+  void _onActivity() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _activity.removeListener(_onActivity);
+    super.dispose();
+  }
+
+  /// WhatsApp mantığı: en son görüşülen en üstte.
+  List<UserProfile> get _sortedFriends {
+    final act = ActivityStore.lastActivity.value;
+    final list = List<UserProfile>.from(_friends);
+    list.sort((a, b) {
+      final d = (act[b.id] ?? 0).compareTo(act[a.id] ?? 0);
+      return d != 0 ? d : a.firstName.compareTo(b.firstName);
+    });
+    return list;
+  }
+
+  String _lastSeenLabel(int ms) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dt.year, dt.month, dt.day);
+    if (day == today) return DateFormat('HH:mm').format(dt);
+    if (today.difference(day).inDays == 1) return 'Dün';
+    return DateFormat('d.MM').format(dt);
   }
 
   Future<void> _load() async {
@@ -48,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+    ActivityStore.refresh(); // okunmamış rozetleri tazele
   }
 
   @override
@@ -127,11 +165,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       sliver: SliverList.builder(
-                        itemCount: _friends.length,
-                        itemBuilder: (context, i) => _friendCard(_friends[i])
-                            .animate(delay: (50 * i).ms)
-                            .fadeIn(duration: Hop.normal)
-                            .slideY(begin: 0.12, curve: Curves.easeOutCubic),
+                        itemCount: _sortedFriends.length,
+                        itemBuilder: (context, i) =>
+                            _friendCard(_sortedFriends[i])
+                                .animate(delay: (50 * i).ms)
+                                .fadeIn(duration: Hop.normal)
+                                .slideY(begin: 0.12, curve: Curves.easeOutCubic),
                       ),
                     ),
                 ],
@@ -212,27 +251,45 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _friendCard(UserProfile friend) {
     final theme = Theme.of(context);
     final isBirthday = friend.daysUntilBirthday == 0;
+    final unreadCount = ActivityStore.unread.value[friend.id] ?? 0;
+    final missedCount = ActivityStore.missed.value[friend.id] ?? 0;
+    final lastMs = ActivityStore.lastActivity.value[friend.id];
+    final subtitle = missedCount > 0
+        ? '$missedCount cevapsız arama'
+        : isBirthday
+            ? 'Bugün doğum günü — ara ve kutla!'
+            : lastMs != null
+                ? 'Son görüşme: ${_lastSeenLabel(lastMs)}'
+                : 'Mesaj için dokun';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Pressable(
-        onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ChatScreen(friend: friend))),
+        onTap: () {
+          ActivityStore.clearMissed(friend.id);
+          Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ChatScreen(friend: friend)));
+        },
         child: Card(
           child: Padding(
             padding: EdgeInsets.all(Hop.isKid ? 16 : 12),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: isBirthday
-                        ? LinearGradient(colors: Hop.gradient)
-                        : null,
-                  ),
-                  child: Hero(
-                    tag: 'avatar-${friend.id}',
-                    child: Avatar(user: friend, radius: Hop.isKid ? 34 : 30),
+                Badge(
+                  isLabelVisible: unreadCount > 0,
+                  label: Text('$unreadCount'),
+                  offset: const Offset(-2, 2),
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: isBirthday
+                          ? LinearGradient(colors: Hop.gradient)
+                          : null,
+                    ),
+                    child: Hero(
+                      tag: 'avatar-${friend.id}',
+                      child: Avatar(user: friend, radius: Hop.isKid ? 34 : 30),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -258,15 +315,31 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      Text(
-                        isBirthday
-                            ? 'Bugün doğum günü — ara ve kutla!'
-                            : 'Mesaj için dokun',
-                        style: TextStyle(
-                            color: isBirthday
-                                ? Colors.deepOrange
-                                : theme.colorScheme.outline,
-                            fontSize: 13),
+                      Row(
+                        children: [
+                          if (missedCount > 0) ...[
+                            const Icon(Icons.phone_missed,
+                                color: Colors.red, size: 15),
+                            const SizedBox(width: 4),
+                          ],
+                          Flexible(
+                            child: Text(
+                              subtitle,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: missedCount > 0
+                                      ? Colors.red
+                                      : isBirthday
+                                          ? Colors.deepOrange
+                                          : theme.colorScheme.outline,
+                                  fontWeight: (missedCount > 0 ||
+                                          unreadCount > 0)
+                                      ? FontWeight.w700
+                                      : FontWeight.normal,
+                                  fontSize: 13),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
