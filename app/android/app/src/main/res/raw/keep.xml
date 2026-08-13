@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bu kaynaklara YALNIZCA Dart tarafından ad ile atıf var; Android'in kaynak
+  küçültücüsü Java/XML'de referans göremediği için release derlemesinde onları
+  siliyordu:
+
+    ic_stat_hophop → bildirim durum çubuğu ikonu. Silinince uygulama açılışta
+                     PlatformException(invalid_icon) ile beyaz ekranda kalıyordu.
+    ringtone       → gelen arama bildirim kanalının zil sesi
+                     (RawResourceAndroidNotificationSound('ringtone')).
+                     Silinince arama bildirimi SESSİZ geliyordu.
+
+  Yeni bir kaynağa yalnızca Dart'tan atıf verirsen buraya eklemeyi unutma —
+  debug derlemesinde sorun görünmez, yalnızca release'de patlar.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_hophop,@raw/ringtone" />

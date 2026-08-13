@@ -20,16 +20,40 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase yapılandırması bozuksa (ör. yer tutucu google-services.json ile
-  // emülatör testi) uygulama arama bildirimi almadan da açılabilmeli.
-  try {
+
+  // Açılış hiçbir koşulda takılmamalı ya da yarıda kesilmemeli: her hazırlık
+  // adımı ayrı ayrı korunur. Biri patlarsa (ör. release'de kırpılmış bir kaynak)
+  // ya da yanıt vermezse (ör. ağ), uygulama o özellik olmadan yine de açılır.
+  // Bunun alternatifi, kullanıcının gördüğü sonsuz beyaz ekrandır.
+  await _step('firebase', () async {
     await Firebase.initializeApp();
     await FcmService.init();
-  } catch (_) {}
-  await NotificationService.init(onResponse: _onNotificationResponse);
-  await initializeDateFormatting('tr');
-  final loggedIn = await auth.restore();
+  });
+  await _step('bildirimler',
+      () => NotificationService.init(onResponse: _onNotificationResponse));
+  await _step('tarih biçimleri', () => initializeDateFormatting('tr'));
+
+  // Oturum: yerel token okunur; sunucu tazelemesi ağ yavaşsa beklenmez.
+  final loggedIn =
+      await _step('oturum', auth.restore, timeout: const Duration(seconds: 8)) ??
+          auth.me != null;
+
   runApp(HopHopApp(loggedIn: loggedIn));
+}
+
+/// Bir açılış adımını zaman aşımı + hata yutmayla çalıştırır.
+/// Başarısızlıkta null döner; açılış her hâlükârda devam eder.
+Future<T?> _step<T>(
+  String name,
+  Future<T> Function() run, {
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  try {
+    return await run().timeout(timeout);
+  } catch (e) {
+    debugPrint('⚠ Açılış adımı "$name" atlandı: $e');
+    return null;
+  }
 }
 
 /// Bildirim aksiyonları (uygulama ön planda/arka planda ama süreç canlıyken).

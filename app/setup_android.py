@@ -205,6 +205,27 @@ def patch_settings_gradle():
         print(f'   {line}')
 
 
+def write_keep_xml():
+    """Yalnızca Dart'tan atıf alan kaynakları küçültücüden korur.
+
+    Release derlemesinde resource shrinker, Java/XML'de referansı olmayan
+    kaynakları siler; bildirim ikonu böyle silinince uygulama açılışta
+    PlatformException(invalid_icon) ile beyaz ekranda kalıyordu.
+    """
+    path = APP / 'android/app/src/main/res/raw/keep.xml'
+    if path.exists():
+        print('✓ res/raw/keep.xml zaten var')
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<!-- Bildirim ikonuna ve zil sesine yalnızca Dart tarafından ad ile\n'
+        '     atıf var; release küçültücüsünden korunurlar. -->\n'
+        '<resources xmlns:tools="http://schemas.android.com/tools"\n'
+        '    tools:keep="@drawable/ic_stat_hophop,@raw/ringtone" />\n')
+    print('✓ res/raw/keep.xml yazıldı (bildirim ikonu + zil sesi korundu)')
+
+
 def copy_ringtone():
     src = APP / 'android-extras/ringtone.wav'
     dst = APP / 'android/app/src/main/res/raw/ringtone.wav'
@@ -219,6 +240,7 @@ def main():
     patch_app_gradle()
     patch_signing()
     patch_settings_gradle()
+    write_keep_xml()
     copy_ringtone()
     gsj = APP / 'android/app/google-services.json'
     print()

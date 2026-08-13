@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../config.dart';
 import '../models/models.dart';
@@ -37,14 +39,28 @@ class NotificationService {
     required void Function(NotificationResponse) onResponse,
   }) async {
     // Durum çubuğu ikonu tek renkli olmalı — renkli logo gri kare görünür.
-    const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@drawable/ic_stat_hophop'),
-    );
-    await _plugin.initialize(
-      settings: settings,
-      onDidReceiveNotificationResponse: onResponse,
-      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
-    );
+    // İkon release'de kaynak küçültücüye yem olursa (res/raw/keep.xml onu
+    // korur) uygulamayı hiç açılmaz hâle getirmek yerine uygulama ikonuna
+    // düşülür: renkli bir bildirim, bildirimsiz bir arama uygulamasından iyidir.
+    try {
+      await _plugin.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@drawable/ic_stat_hophop'),
+        ),
+        onDidReceiveNotificationResponse: onResponse,
+        onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
+      );
+    } on PlatformException catch (e) {
+      if (e.code != 'invalid_icon') rethrow;
+      debugPrint('⚠ ic_stat_hophop bulunamadı — uygulama ikonuna düşülüyor');
+      await _plugin.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        ),
+        onDidReceiveNotificationResponse: onResponse,
+        onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
+      );
+    }
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await android?.createNotificationChannel(callChannel);
