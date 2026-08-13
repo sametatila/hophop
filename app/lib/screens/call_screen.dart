@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../effects/effect_painter.dart';
@@ -34,9 +35,16 @@ class CallScreen extends StatefulWidget {
   State<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends State<CallScreen> {
+class _CallScreenState extends State<CallScreen>
+    with SingleTickerProviderStateMixin {
   final _localPreviewKey = GlobalKey();
   late final FxController _fx;
+
+  /// Animasyonlu efektlerin saati (saniye). Yalnızca animasyonlu bir efekt
+  /// görünürken repaint kaynağı olarak bağlanır — statikte 60fps çizim olmaz.
+  final _fxClock = ValueNotifier<double>(0);
+  Ticker? _fxTicker;
+  String _fxCat = 'animal';
   EventsListener<RoomEvent>? _listener;
   bool _micOn = true;
   late bool _camOn = widget.videoCall;
@@ -103,6 +111,9 @@ class _CallScreenState extends State<CallScreen> {
       }
     });
     AuthService.cachedFriends().then((f) => _friends = f);
+    _fxTicker = createTicker(
+        (elapsed) => _fxClock.value = elapsed.inMilliseconds / 1000)
+      ..start();
     WakelockPlus.enable(); // görüşme boyunca ekran kararmasın/kilitlenmesin
     // ignore: deprecated_member_use
     Hardware.instance.setSpeakerphoneOn(_speakerOn);
@@ -120,6 +131,8 @@ class _CallScreenState extends State<CallScreen> {
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
     _emptyRoomGuard?.cancel();
+    _fxTicker?.dispose();
+    _fxClock.dispose();
     _listener?.dispose();
     _fx.dispose();
     widget.room.disconnect();
@@ -137,6 +150,34 @@ class _CallScreenState extends State<CallScreen> {
       if (track != null && !pub.muted) return track as VideoTrack;
     }
     return null;
+  }
+
+  Widget _fxCatChip({
+    required bool selected,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Pressable(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white24 : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(height: 2),
+            Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 10)),
+          ],
+        ),
+      ),
+    );
   }
 
   VideoTrack? get _localVideo {
@@ -351,7 +392,11 @@ class _CallScreenState extends State<CallScreen> {
                                 valueListenable: _fx.localFx,
                                 builder: (context, localFrame, _) =>
                                     CustomPaint(
-                                  foregroundPainter: EffectPainter(localFrame),
+                                  foregroundPainter: EffectPainter(localFrame,
+                                      clock: kAnimatedFx
+                                              .contains(localFrame?.effect)
+                                          ? _fxClock
+                                          : null),
                                   child: VideoTrackRenderer(local),
                                 ),
                               ),
@@ -370,47 +415,87 @@ class _CallScreenState extends State<CallScreen> {
                 ),
               ),
 
-            // ---- Efekt şeridi ----
+            // ---- Efekt seçici: kategori sekmeleri + kaydırılan şerit ----
             if (_showEffects)
               Align(
                 alignment: Alignment.bottomCenter,
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 112),
+                  constraints: BoxConstraints(
+                      maxWidth: (MediaQuery.sizeOf(context).width - 24)
+                          .clamp(0.0, 460.0)),
                   child: GlassPanel(
                     radius: 20,
                     padding: const EdgeInsets.all(8),
                     tint: Colors.black38,
-                  child: ValueListenableBuilder(
-                    valueListenable: _fx.effect,
-                    builder: (context, current, _) => Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final e in effectCatalog)
-                          GestureDetector(
-                            onTap: () => _fx.effect.value = e.id,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              decoration: BoxDecoration(
-                                color: current == e.id
-                                    ? Colors.white24
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
+                    child: ValueListenableBuilder(
+                      valueListenable: _fx.effect,
+                      builder: (context, current, _) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Kapat: efekt yok
+                              _fxCatChip(
+                                selected: current == 'none',
+                                icon: Icons.block,
+                                label: 'Yok',
+                                onTap: () => _fx.effect.value = 'none',
                               ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  EffectThumb(effectId: e.id, size: 36),
-                                  Text(e.label,
-                                      style: const TextStyle(
-                                          color: Colors.white, fontSize: 11)),
-                                ],
-                              ),
+                              for (final cat in fxCategories)
+                                _fxCatChip(
+                                  selected: _fxCat == cat.id,
+                                  icon: cat.icon,
+                                  label: cat.label,
+                                  onTap: () =>
+                                      setState(() => _fxCat = cat.id),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 68,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                for (final e in fxCategories
+                                    .firstWhere((c) => c.id == _fxCat)
+                                    .effects)
+                                  Pressable(
+                                    onTap: () => _fx.effect.value = e.id,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      margin: const EdgeInsets.symmetric(
+                                          horizontal: 3),
+                                      decoration: BoxDecoration(
+                                        color: current == e.id
+                                            ? Colors.white24
+                                            : Colors.transparent,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          EffectThumb(
+                                              effectId: e.id, size: 40),
+                                          const SizedBox(height: 2),
+                                          Text(e.label,
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ),
@@ -511,7 +596,10 @@ class _CallScreenState extends State<CallScreen> {
         ? ValueListenableBuilder(
             valueListenable: _fx.remoteFx,
             builder: (context, map, _) => CustomPaint(
-              foregroundPainter: EffectPainter(map[p.identity]),
+              foregroundPainter: EffectPainter(map[p.identity],
+                  clock: kAnimatedFx.contains(map[p.identity]?.effect)
+                      ? _fxClock
+                      : null),
               child: VideoTrackRenderer(video),
             ),
           )

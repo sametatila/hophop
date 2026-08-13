@@ -37,7 +37,9 @@ class FxFrame {
     lx: 0, ly: 0, rx: 0, ry: 0, nx: 0, ny: 0,
   );
 
-  bool get isOff => effect == 'none' || w == 0;
+  /// Yalnızca efekt kimliğine bakılır: sihir efektleri yüz algılanmadan da
+  /// (w == 0) çizilir; yüze bağlı ressamlar küçük kutuyu kendileri eler.
+  bool get isOff => effect == 'none';
 
   FxFrame mirrored() => FxFrame(
         effect: effect,

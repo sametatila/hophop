@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'effect_painter.dart' show kMagicFx;
 import 'fx_frame.dart';
 
 /// Yerel kamera önizlemesinden yüz izleme.
@@ -64,7 +65,14 @@ class FaceTracker {
       );
       final faces = await _detector.processImage(input);
       if (faces.isEmpty) {
-        onFace?.call(null);
+        // Sihir efektleri yüzsüz de akar (kar, konfeti…): boş yüzlü kare
+        // gönderilir; yüze bağlı efektlerde overlay temizlenir.
+        onFace?.call(kMagicFx.contains(effect)
+            ? FxFrame(
+                effect: effect,
+                cx: 0.5, cy: 0.45, w: 0, h: 0, rz: 0, mouth: 0,
+                lx: 0, ly: 0, rx: 0, ry: 0, nx: 0, ny: 0)
+            : null);
         return;
       }
       onFace?.call(_toFrame(faces.first, width.toDouble(), height.toDouble()));
