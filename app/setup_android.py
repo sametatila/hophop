@@ -23,6 +23,7 @@ PERMISSIONS = [
     'android.permission.CAMERA',
     'android.permission.RECORD_AUDIO',
     'android.permission.POST_NOTIFICATIONS',
+    'android.permission.USE_FULL_SCREEN_INTENT',
     'android.permission.VIBRATE',
     'android.permission.WAKE_LOCK',
     'android.permission.ACCESS_NETWORK_STATE',

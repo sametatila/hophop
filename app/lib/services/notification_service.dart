@@ -65,7 +65,10 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.max,
       category: AndroidNotificationCategory.call,
-      fullScreenIntent: false, // bilinçli: Android 14+ izin istemesin
+      // Kilitli/kapalı ekranda arama ekranı DOĞRUDAN açılır (WhatsApp gibi).
+      // Mağaza dışı kurulumda izin varsayılan verilidir; reddedilmişse
+      // Ayarlar'daki "Tam ekran arama" kartı yönlendirir.
+      fullScreenIntent: true,
       ongoing: true,
       autoCancel: false,
       timeoutAfter: ringTimeout.inMilliseconds,

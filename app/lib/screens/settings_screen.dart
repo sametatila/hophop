@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
 import '../services/permission_service.dart';
@@ -121,6 +122,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             );
           }),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Card(
+              child: ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                leading: const Icon(Icons.fullscreen, size: 30),
+                title: const Text('Tam ekran arama'),
+                subtitle: const Text(
+                    'Kilitliyken arama ekranı doğrudan açılsın'),
+                trailing: FilledButton.tonal(
+                  onPressed: () async {
+                    // İzin verilmemişse sistem ayar sayfasını açar.
+                    await FlutterLocalNotificationsPlugin()
+                        .resolvePlatformSpecificImplementation<
+                            AndroidFlutterLocalNotificationsPlugin>()
+                        ?.requestFullScreenIntentPermission();
+                    await _refresh();
+                  },
+                  child: const Text('Kontrol et'),
+                ),
+              ),
+            ),
+          ),
           if (_aggressiveOem) ...[
             const SizedBox(height: 12),
             Card(
