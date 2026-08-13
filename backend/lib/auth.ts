@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { db } from './firebase.js';
 
 function secret(): Uint8Array {
   const s = process.env.JWT_SECRET;
@@ -27,6 +28,9 @@ export async function requireAuth(req: VercelRequest, res: VercelResponse): Prom
   try {
     const { payload } = await jwtVerify(token, secret());
     if (!payload.sub) throw new Error('no sub');
+    // Silinen kullanıcının token'ı geçersizdir — imza yetmez, kayıt da olmalı.
+    const snap = await db().collection('users').doc(payload.sub).get();
+    if (!snap.exists) throw new Error('user gone');
     return payload.sub;
   } catch {
     res.status(401).json({ error: 'unauthorized' });

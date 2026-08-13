@@ -103,6 +103,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    ActivityStore.activeChatId = widget.friend.id;
     _loadCache().then((_) => _load());
     // Uygulama açıkken gelen mesajlar FCM ile anında düşer; push kaçarsa
     // hafif bir tazeleme döngüsü açığı kapatır.
@@ -133,6 +134,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    if (ActivityStore.activeChatId == widget.friend.id) {
+      ActivityStore.activeChatId = null;
+    }
     _sub?.cancel();
     _typingSub?.cancel();
     _poll?.cancel();

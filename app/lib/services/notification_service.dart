@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../config.dart';
 import '../models/models.dart';
+import 'api_client.dart';
+import 'auth_service.dart';
 
 /// Gelen arama bildirimi — işin kalbi.
 ///
@@ -124,11 +126,19 @@ class NotificationService {
 }
 
 /// Arka planda (uygulama kapalıyken) bildirim aksiyonu işleyici.
-/// "Reddet" burada ele alınır; "Cevapla" showsUserInterface ile uygulamayı açar
-/// ve main.dart'taki onResponse üzerinden yürür.
+/// "Cevapla" showsUserInterface ile uygulamayı açar (main.dart yürütür);
+/// "Reddet" burada GERÇEK red gönderir — arayan 45 sn beklemez.
 @pragma('vm:entry-point')
-void notificationTapBackground(NotificationResponse response) {
-  // Reddet: sessizce yut — arayan taraf 45 sn zaman aşımıyla düşer.
-  // (Arka plan isolate'inde API çağrısı için oturum açmak gerekir; reddin
-  // anında iletilmesi uygulama açıkken zaten yapılıyor.)
+Future<void> notificationTapBackground(NotificationResponse response) async {
+  if (response.actionId != 'reject') return;
+  final payload = response.payload;
+  if (payload == null || payload.isEmpty) return;
+  try {
+    final call = IncomingCall.fromData(
+        Map<String, dynamic>.from(jsonDecode(payload) as Map));
+    final token = await AuthService.readToken();
+    if (token == null) return;
+    api.setToken(token);
+    await api.respondCall(call.roomName, call.callerId, false, call.video);
+  } catch (_) {/* çevrimdışı — arayan zaman aşımıyla düşer */}
 }

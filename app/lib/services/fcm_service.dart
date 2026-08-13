@@ -81,8 +81,10 @@ class FcmService {
       case 'new_message':
         messageEvents.add(message);
         final from = message.data['fromUserId'] as String;
-        ActivityStore.onIncomingMessage(from);
         ackDelivery(from); // ✓✓ — cihaz aldı, sohbet açılmasa da iletildi olur
+        // Sohbeti zaten açık olan kişiden gelen mesaj bildirim/rozet üretmez.
+        if (ActivityStore.activeChatId == from) break;
+        ActivityStore.onIncomingMessage(from);
         // İçerik bildirimde gösterilmez (uçtan uca şifreli — yalnızca gönderen adı).
         await NotificationService.showGeneral(
           2003,

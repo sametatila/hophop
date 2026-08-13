@@ -20,6 +20,10 @@ class ActivityStore {
   /// Bekleyen gelen arkadaşlık isteği sayısı (İstekler sekmesi rozeti).
   static final pendingRequests = ValueNotifier<int>(0);
 
+  /// Şu an açık olan sohbetin arkadaş kimliği — o kişiden gelen mesajlar
+  /// bildirim/rozet üretmez (WhatsApp davranışı).
+  static String? activeChatId;
+
   static Map<String, int> _lastRead = {};
 
   static Future<File> _file(String name) async {

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -39,6 +40,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _refresh();
+  }
+
+  /// Basit ebeveyn kapısı: çarpım sorusu (çocuk uygulamalarında standart).
+  Future<bool> _parentalGate() async {
+    final rnd = Random();
+    final a = 6 + rnd.nextInt(4), b = 6 + rnd.nextInt(4);
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Büyüklere soru'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Devam etmek için: $a × $b = ?',
+                style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'Cevap'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, controller.text.trim() == '${a * b}'),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            child: const Text('Doğrula'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<void> _refresh() async {
@@ -226,6 +266,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: const Icon(Icons.logout),
             label: const Text('Çıkış yap'),
             onPressed: () async {
+              // Çocuk modunda ebeveyn kapısı: çocuk yanlışlıkla oturumu
+              // kapatıp aileyi kendisine ulaşılamaz bırakmasın.
+              if (Hop.isKid && !await _parentalGate()) return;
+              if (!context.mounted) return;
               final sure = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
