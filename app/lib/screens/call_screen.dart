@@ -53,7 +53,8 @@ class _CallScreenState extends State<CallScreen> {
     super.initState();
     _fx = FxController(room: widget.room, localPreviewKey: _localPreviewKey);
     _listener = widget.room.createListener()
-      ..on<RoomDisconnectedEvent>((_) => _leave())
+      // Beklenmedik kopuş (biz kapatmadan oda düştü) → "Yeniden ara" teklif edilir.
+      ..on<RoomDisconnectedEvent>((_) => _leave(dropped: true))
       // Zayıf bağlantı yönetimi (WhatsApp davranışı): SDK kendiliğinden
       // yeniden bağlanmayı dener; biz durumu gösterir ve 30 sn'de toparlanmazsa
       // görüşmeyi düzgünce kapatırız.
@@ -62,7 +63,7 @@ class _CallScreenState extends State<CallScreen> {
         setState(() => _reconnecting = true);
         _reconnectWatchdog?.cancel();
         _reconnectWatchdog = Timer(const Duration(seconds: 30), () {
-          if (mounted && _reconnecting) _leave();
+          if (mounted && _reconnecting) _leave(dropped: true);
         });
       })
       ..on<RoomReconnectedEvent>((_) {
@@ -77,7 +78,16 @@ class _CallScreenState extends State<CallScreen> {
           setState(() {});
         }
       })
-      ..on<ParticipantConnectedEvent>((_) => setState(() {}))
+      ..on<ParticipantConnectedEvent>((e) {
+        setState(() {});
+        // Grup arama: davet edilen katılınca herkes görsün.
+        if (widget.room.remoteParticipants.length > 1 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('${e.participant.name.split(' ').first} katıldı'),
+            duration: const Duration(seconds: 2),
+          ));
+        }
+      })
       ..on<TrackSubscribedEvent>((_) => setState(() {}))
       ..on<TrackUnsubscribedEvent>((_) => setState(() {}));
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -89,9 +99,9 @@ class _CallScreenState extends State<CallScreen> {
     Hardware.instance.setSpeakerphoneOn(_speakerOn);
   }
 
-  void _leave() {
+  void _leave({bool dropped = false}) {
     if (mounted && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(dropped ? 'dropped' : null);
     }
   }
 

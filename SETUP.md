@@ -15,11 +15,9 @@ Aşağıdaki adımlar bir kez yapılır; sonrası sadece kullanıcı eklemek ve 
   - ✅ Android uygulaması (`com.hophop.hophop`) API ile oluşturuldu,
     `google-services.json` indirildi → `app/android/app/` içinde
   - Yeni klonda tekrar indirmek için: `cd backend && node scripts/fetch-google-services.mjs`
-  - [ ] **Authentication → "Get started"** butonuna bir kez bas (gerçek-zamanlı
-    zil dinleyicisi için şart; API ile açılamıyor, tek tık, ücretsiz):
-    https://console.firebase.google.com/project/hophop-59a59/authentication
-- [ ] **LiveKit Cloud** → proje aç → **API Key + Secret + wss URL** not al
-- [ ] **Vercel** hesabı (varsa geç)
+  - [x] **Authentication** etkin ✅ (gerçek-zamanlı zil dinleyicisi bunu kullanır)
+- [x] **LiveKit Cloud** ✅ anahtarlar `.env`'de, canlıda doğrulandı
+- [x] **Vercel** ✅ GitHub bağlı, otomatik deploy; özel alan adı: **hophop.exfe.me**
 
 ## 2) Gizli anahtarları üret
 
@@ -30,19 +28,13 @@ base64 -w0 indirdigin-service-account.json   # → FIREBASE_SERVICE_ACCOUNT değ
 
 Değerleri bir yere (şifre yöneticisi) kaydet. `backend/.env.example` hangi değişkenin ne olduğunu açıklıyor.
 
-## 3) Backend'i deploy et
+## 3) Backend deploy ✅ TAMAMLANDI
 
-GitHub üzerinden (önerilen — monorepo):
-
-1. Repoyu GitHub'a pushla (repo kökü `hophop/`, gizli değerler `.gitignore`'da)
-2. Vercel → **Add New Project** → GitHub reposunu seç
-3. **Root Directory: `backend`** olarak ayarla (monorepo için şart)
-4. Environment Variables → `backend/.env` içindeki 8 değişkeni gir → Deploy
-
-Ya da CLI ile: `cd backend && npm install && vercel --prod`
-
-Test: `curl -H "X-Admin-Secret: <ADMIN_SECRET>" https://<proje>.vercel.app/api/admin/users`
-→ `{"users":[]}` dönerse hazır.
+- Vercel, GitHub `main` dalından otomatik deploy alıyor (Root Directory: `backend`,
+  bölge: fra1). Üretim adresi: **https://hophop.exfe.me** (eski
+  `hophop-kappa.vercel.app` da çalışır). Tüm uçlar tek fonksiyonda
+  (`api/router.ts` + rewrite) — Hobby 12-fonksiyon sınırına takılmaz.
+- Uçtan uca doğrulama (39 test): `cd backend && node scripts/e2e-test.mjs`
 
 ## 3.5) Tanıtım sayfası (hophop.exfe.me)
 
@@ -71,43 +63,65 @@ Sayfa `backend/public/` içinde, tek dosya (`index.html`), derleme adımı yok.
 
 ```bash
 cd backend
-API_URL=https://<proje>.vercel.app ADMIN_SECRET=<secret> \
+API_URL=https://hophop.exfe.me ADMIN_SECRET=<secret> \
   node scripts/add-user.mjs "Ali" "Yılmaz" 2016-05-21
 ```
 
 - Herkes için bir kez. Listele: `node scripts/list-users.mjs` (aynı env ile)
 - Ad/soyad yazımı esnek (büyük-küçük harf, Türkçe karakter farkı sorun değil)
   ama **doğum tarihi birebir doğru olmalı** — giriş anahtarı bu.
-- Silme: `curl -X DELETE -H "X-Admin-Secret: ..." -H "Content-Type: application/json" -d '{"userId":"<id>"}' .../api/admin/users`
+- Doğum tarihi 13 yaş altını gösteriyorsa uygulama **çocuk modunda** açılır
+  (büyük butonlar, canlı renkler); üstü yetişkin temasında.
+- Silme: `curl -X DELETE -H "X-Admin-Secret: ..." -H "Content-Type: application/json" -d '{"userId":"<id>"}' https://hophop.exfe.me/api/admin/users`
+- Ayrıntılı liste (doğum tarihleriyle, yalnızca yerelde): proje kökündeki
+  `KULLANICILAR.md` — gitignore'da, public repoya gitmez.
 
 ## 5) APK'yı derle
 
 ```bash
 cd app
-python3 setup_android.py    # android/ iskeletini üretir + izinleri/gradle'ı yamalar
-# → google-services.json'u app/android/app/ içine koy (adım 1'den)
 flutter pub get
-flutter build apk --release --dart-define=HOPHOP_API=https://<proje>.vercel.app
+flutter build apk --release
 # çıktı: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Sürüm uyuşmazlığı hatası çıkarsa: `flutter pub upgrade` deneyip tekrar derle.
+- `android/` klasörü artık repoda hazır (setup_android.py yalnızca sıfırdan
+  kurulumda gerekir). Varsayılan API adresi **https://hophop.exfe.me** koda
+  gömülü — `--dart-define` gerekmez; farklı ortam için
+  `--dart-define=HOPHOP_API=...` ile ezilir.
+- Taze klonda `google-services.json` eksikse:
+  `cd backend && node scripts/fetch-google-services.mjs`
+- Sürüm uyuşmazlığı hatası çıkarsa: `flutter pub upgrade` deneyip tekrar derle.
 
 ## 6) Dağıt ve test et
 
-- [ ] APK'yı aile üyelerine **doğrudan** gönder (herkese açık linke koyma — plan §3.3)
+- [ ] APK'yı aile üyelerine gönder (dağıtım kararı §3.5'teki üç seçenekten biri)
 - [ ] Her cihazda: kur → ad-soyad-doğum tarihiyle gir → izin sihirbazını tamamla
-  (Xiaomi/Oppo/Vivo'da pil kartı otomatik görünür) → bir daha giriş istemez
-- [ ] İki cihazla uçtan uca test: arkadaşlık isteği → kabul → kilitli ekranda arama →
-  Cevapla → görüntü → efekt şeridinden 🐶 seç, ağız açınca dil çıkmalı
+  (Xiaomi/Oppo/Vivo'da pil kartı otomatik görünür; ayrıca Ayarlar'da
+  "Otomatik başlatma" rehberi var) → bir daha giriş istemez
+- [ ] İki cihazla uçtan uca kontrol listesi:
+  - Arkadaşlık: istek gönder → İstekler rozetinde sayı → kabul → kart ana ekranda
+  - Arama: ekran KAPALIYKEN ara → arama ekranı doğrudan açılmalı (tam ekran);
+    uygulama açıkken ara → üstten şerit çıkmadan ekran + uygulama zili
+  - Görüşmede: hoparlör düğmesi, kendi görüntüne dokununca kamera değişimi,
+    efekt şeridi (gerçek yüzle tavşan/köpek; ağız açınca dil)
+  - Meşgul testi: biri görüşmedeyken üçüncü kişi arasın → "Meşgul" anında dönmeli
+  - Mesaj: gönder (saat→✓), karşı cihaza düşünce ✓✓, sohbet açınca rozet sıfır;
+    "yazıyor…" göstergesi; bildirime dokununca sohbet açılmalı
+  - Sohbette arama kayıtları: süreli "Görüntülü arama · 2 dk", kırmızı cevapsızlar
+  - Kesinti: görüşmede WiFi'ı 10 sn kapat → "Yeniden bağlanıyor…" → toparlanma;
+    30 sn+ kopunca "Bağlantı koptu — Yeniden ara" teklifi
 - [ ] Doğum günü şeridi: doğum günü yaklaşan biri ana ekranda görünmeli
 
 ## 7) İşletme (düzenli)
 
-- Ayda bir **LiveKit dashboard** → dakika kullanımı (ücretsiz: 5.000 katılımcı-dk/ay,
-  ~41 saat ikili görüşme). Aşarsa: ücretli katman ya da self-host (plan §6)
+- Ayda bir **LiveKit dashboard** → dakika kullanımı (ücretsiz: 5.000 katılımcı-dk/ay;
+  grup aramada her katılımcı ayrı sayılır). Aşarsa: ücretli katman ya da self-host
+- Her backend değişikliğinden sonra: `node scripts/e2e-test.mjs` (39 test)
 - Yeni aile üyesi = adım 4 + APK gönder
 - Sorun yaşayan cihaz = uygulamada **Ayarlar → İzin durumu → Düzelt**
+- **Emülatörde** bildirim/zil kesilirse: WiFi kapat-aç (bayat GCM bağlantısı) ya da
+  cold boot — gerçek cihazlarda bu sorun yoktur
 
 ## Bilinmesi iyi olan sınırlar
 

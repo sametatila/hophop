@@ -134,13 +134,14 @@ class ApiClient {
   }
 
   Future<({String livekitToken, String livekitUrl, String? callerPublicKey})>
-      respondCall(
-          String roomName, String callerId, bool accept, bool video) async {
+      respondCall(String roomName, String callerId, bool accept, bool video,
+          {bool busy = false}) async {
     final r = await _request('POST', '/api/call/respond', {
       'roomName': roomName,
       'callerId': callerId,
       'accept': accept,
       'video': video,
+      'busy': busy,
     });
     if (!accept) {
       return (livekitToken: '', livekitUrl: '', callerPublicKey: null);

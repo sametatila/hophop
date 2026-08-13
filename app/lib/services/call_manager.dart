@@ -47,7 +47,18 @@ class CallManager {
   /// üstten bildirim şeridi ÇIKMAZ, zili uygulama kendisi çalar. Uygulama
   /// arka plandaysa bildirim (zil sesli + tam ekran intent) devrede kalır.
   static Future<void> handleRing(IncomingCall ring) async {
-    if (_inCall || _handledRooms.contains(ring.roomName)) return;
+    if (_handledRooms.contains(ring.roomName)) return;
+    if (_inCall) {
+      // Meşgul: arayana anında "meşgul" sinyali dön (45 sn bekletme yok).
+      _handledRooms.add(ring.roomName);
+      unawaited(() async {
+        try {
+          await api.respondCall(ring.roomName, ring.callerId, false, ring.video,
+              busy: true);
+        } catch (_) {}
+      }());
+      return;
+    }
     _handledRooms.add(ring.roomName);
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
@@ -77,8 +88,7 @@ class CallManager {
     final data = Map<String, dynamic>.from(message.data as Map);
     switch (data['type']) {
       case 'incoming_call':
-        if (_inCall) return; // meşgul — kendi kendine düşer
-        await handleRing(IncomingCall.fromData(data));
+        await handleRing(IncomingCall.fromData(data)); // meşgulse busy döner
       case 'call_cancelled':
         await NotificationService.cancelIncomingCall();
         await RingtonePlayer.stop();
@@ -91,6 +101,9 @@ class CallManager {
       case 'call_rejected':
         _popIfCurrent<OutgoingCallScreen>();
         _toast('Cevaplamadı');
+      case 'call_busy':
+        _popIfCurrent<OutgoingCallScreen>();
+        _toast('Meşgul — başka bir görüşmede');
     }
   }
 
@@ -168,7 +181,9 @@ class CallManager {
           replaceCurrent: true,
           roomName: r.roomName,
         );
-      } else if (data['type'] == 'call_rejected' && !settled) {
+      } else if ((data['type'] == 'call_rejected' ||
+              data['type'] == 'call_busy') &&
+          !settled) {
         settled = true;
         cleanup();
       }
@@ -279,10 +294,23 @@ class CallManager {
             room: room, peer: peer, videoCall: video, roomName: roomName),
         fullscreenDialog: true,
       );
-      if (replaceCurrent && nav.canPop()) {
-        await nav.pushReplacement(route);
-      } else {
-        await nav.push(route);
+      final result = replaceCurrent && nav.canPop()
+          ? await nav.pushReplacement(route)
+          : await nav.push(route);
+      // Bağlantı koptuysa (kullanıcı kapatmadı) tek dokunuşla yeniden ara.
+      if (result == 'dropped') {
+        final messenger = navigatorKey.currentContext == null
+            ? null
+            // ignore: use_build_context_synchronously
+            : ScaffoldMessenger.maybeOf(navigatorKey.currentContext!);
+        messenger?.showSnackBar(SnackBar(
+          content: const Text('Bağlantı koptu'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Yeniden ara',
+            onPressed: () => startCall(peer, video),
+          ),
+        ));
       }
       return true;
     } catch (e, st) {

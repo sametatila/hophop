@@ -46,6 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const callerId = str(req.body?.callerId);
   const accept = req.body?.accept === true;
   const video = req.body?.video === true;
+  const busy = req.body?.busy === true; // aranan başka görüşmede
   if (!roomName || !callerId) return badRequest(res, 'roomName and callerId required');
 
   // Gecikme: arkadaşlık denetimi ve profil okumaları paralel yürür.
@@ -61,7 +62,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!accept) {
     await Promise.all([
-      pushToUser(callerId, { type: 'call_rejected', roomName }),
+      pushToUser(callerId, {
+        type: busy ? 'call_busy' : 'call_rejected',
+        roomName,
+      }),
       logCallEvent({ callerId, calleeId: userId, video, outcome: 'missed', roomName }),
       clearRing,
     ]);
