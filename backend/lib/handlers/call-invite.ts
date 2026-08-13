@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const meSnap = await db().collection('users').doc(userId).get();
   const me = toPublicProfile(meSnap);
 
-  await pushToUser(calleeId, {
+  const ringPayload = {
     type: 'incoming_call',
     roomName,
     callerId: userId,
@@ -43,7 +43,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     callerPublicKey: meSnap.get('publicKey') ?? '',
     roomKeyEnc,
     group: '1',
-  });
+  };
+
+  // Davet de üçlü teslimattan yararlanır: push kaybolsa bile gerçek-zamanlı
+  // zil dinleyicisi yakalar; respond'daki zil-belgesi denetimi de bunu bekler.
+  await Promise.all([
+    pushToUser(calleeId, ringPayload),
+    db().collection('rings').doc(calleeId).set({ ...ringPayload, atMs: Date.now() }),
+  ]);
 
   return res.status(200).json({ ok: true, participants: count });
 }

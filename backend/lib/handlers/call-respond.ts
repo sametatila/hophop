@@ -50,12 +50,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!roomName || !callerId) return badRequest(res, 'roomName and callerId required');
 
   // Gecikme: arkadaşlık denetimi ve profil okumaları paralel yürür.
-  const [friends, meSnap, callerSnap] = await Promise.all([
+  const [friends, meSnap, callerSnap, ringSnap] = await Promise.all([
     areFriends(userId, callerId),
     db().collection('users').doc(userId).get(),
     db().collection('users').doc(callerId).get(),
+    db().collection('rings').doc(userId).get(),
   ]);
   if (!friends) return res.status(403).json({ error: 'not_friends' });
+
+  // Arayan vazgeçtiyse (zil belgesi silinmiş/başka aramaya geçmiş) kabul
+  // edilemez — aksi halde aranan boş odaya bağlanıp "Bağlanıyor"da takılır.
+  if (accept && (!ringSnap.exists || ringSnap.get('roomName') !== roomName)) {
+    return res.status(410).json({ error: 'call_gone' });
+  }
 
   // Arama sonuçlandı — yedek zil kaydı temizlenir.
   const clearRing = db().collection('rings').doc(userId).delete().catch(() => {});

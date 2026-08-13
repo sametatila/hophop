@@ -46,6 +46,7 @@ class _CallScreenState extends State<CallScreen> {
   Duration _elapsed = Duration.zero;
   Timer? _clock;
   Timer? _reconnectWatchdog;
+  Timer? _emptyRoomGuard;
   List<UserProfile> _friends = [];
 
   @override
@@ -79,6 +80,7 @@ class _CallScreenState extends State<CallScreen> {
         }
       })
       ..on<ParticipantConnectedEvent>((e) {
+        _emptyRoomGuard?.cancel();
         setState(() {});
         // Grup arama: davet edilen katılınca herkes görsün.
         if (widget.room.remoteParticipants.length > 1 && mounted) {
@@ -92,6 +94,13 @@ class _CallScreenState extends State<CallScreen> {
       ..on<TrackUnsubscribedEvent>((_) => setState(() {}));
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+    });
+    // Boş oda korunağı: karşı taraf hiç gelmezse (iptal/kopuş yarışları)
+    // "Bağlanıyor"da takılı kalmak yerine kapat ve yeniden aramayı öner.
+    _emptyRoomGuard = Timer(const Duration(seconds: 15), () {
+      if (mounted && widget.room.remoteParticipants.isEmpty) {
+        _leave(dropped: true);
+      }
     });
     AuthService.cachedFriends().then((f) => _friends = f);
     WakelockPlus.enable(); // görüşme boyunca ekran kararmasın/kilitlenmesin
@@ -110,6 +119,7 @@ class _CallScreenState extends State<CallScreen> {
     WakelockPlus.disable();
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
+    _emptyRoomGuard?.cancel();
     _listener?.dispose();
     _fx.dispose();
     widget.room.disconnect();

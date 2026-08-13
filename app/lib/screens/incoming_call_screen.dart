@@ -31,6 +31,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     super.initState();
     _timeout = Timer(ringTimeout, () {
       if (mounted && !_connecting) {
+        CallManager.ringScreenClosed(widget.call.roomName);
         RingtonePlayer.stop();
         ActivityStore.recordMissed(widget.call.callerId); // cevapsız
         Navigator.of(context).pop();

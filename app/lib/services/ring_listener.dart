@@ -36,7 +36,12 @@ class RingListener {
           .snapshots()
           .listen((snap) {
         final data = snap.data();
-        if (data == null) return;
+        if (data == null) {
+          // Zil belgesi silindi: arayan vazgeçti ya da arama sonuçlandı.
+          // FCM bayatlamış olsa bile iptal bu yoldan ulaşır — zil susturulur.
+          CallManager.handleRingGone(null);
+          return;
+        }
         final atMs = (data['atMs'] as num?)?.toInt() ?? 0;
         if (DateTime.now().millisecondsSinceEpoch - atMs > 45000) return;
         final call = IncomingCall.fromData(Map<String, dynamic>.from(data));

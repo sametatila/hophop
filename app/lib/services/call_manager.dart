@@ -35,6 +35,11 @@ class CallManager {
   /// tekrar teslim etse bile). Cevaplandıktan sonra da kayıtlı kalır.
   static final _handledRooms = <String>{};
 
+  /// Şu an ÇALAN arama ve ekranı — iptal sinyali (FCM ya da zil belgesinin
+  /// silinmesi) geldiğinde susturup kapatabilmek için.
+  static IncomingCall? _ringing;
+  static Route<dynamic>? _ringRoute;
+
   static void init() {
     _sub?.cancel();
     _sub = FcmService.callEvents.stream.listen(_onCallEvent);
@@ -60,6 +65,7 @@ class CallManager {
       return;
     }
     _handledRooms.add(ring.roomName);
+    _ringing = ring;
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (foreground) {
@@ -67,10 +73,37 @@ class CallManager {
     } else {
       await NotificationService.showIncomingCall(ring);
     }
-    _nav?.push(MaterialPageRoute(
+    final route = MaterialPageRoute(
       builder: (_) => IncomingCallScreen(call: ring),
       fullscreenDialog: true,
-    ));
+    );
+    _ringRoute = route;
+    _nav?.push(route);
+  }
+
+  /// Arayan vazgeçti: FCM 'call_cancelled' YA DA zil belgesinin silinmesiyle
+  /// gelir (FCM bayatlasa bile Firestore yolu iptali taşır). Hâlâ çalıyorsa
+  /// susturur, gelen arama ekranını kapatır, cevapsız olarak işler.
+  /// Cevaplandıktan/reddedildikten sonra no-op'tur.
+  static Future<void> handleRingGone(String? roomName) async {
+    final ring = _ringing;
+    if (ring == null) return;
+    if (roomName != null && roomName != ring.roomName) return;
+    _ringing = null;
+    await NotificationService.cancelIncomingCall();
+    await RingtonePlayer.stop();
+    await ActivityStore.recordMissed(ring.callerId);
+    final route = _ringRoute;
+    _ringRoute = null;
+    if (route != null && route.isActive) _nav?.removeRoute(route);
+  }
+
+  /// Gelen arama ekranı kendi zaman aşımıyla kapandığında durum temizliği.
+  static void ringScreenClosed(String roomName) {
+    if (_ringing?.roomName == roomName) {
+      _ringing = null;
+      _ringRoute = null;
+    }
   }
 
   /// Sunucuya "beni arayan var mı?" diye sorar (öne geliş/açılış anı için).
@@ -90,14 +123,18 @@ class CallManager {
       case 'incoming_call':
         await handleRing(IncomingCall.fromData(data)); // meşgulse busy döner
       case 'call_cancelled':
-        await NotificationService.cancelIncomingCall();
-        await RingtonePlayer.stop();
         // oda _handledRooms kümesinde kalır — yeniden çalmaz
-        if (!_inCall) {
-          final callerId = data['callerId'] as String?;
-          if (callerId != null) ActivityStore.recordMissed(callerId);
+        if (_ringing != null) {
+          await handleRingGone(data['roomName'] as String?);
+        } else {
+          // Zil bu uygulama örneğinde hiç çalmadı (yalnızca bildirim vardı).
+          await NotificationService.cancelIncomingCall();
+          await RingtonePlayer.stop();
+          if (!_inCall) {
+            final callerId = data['callerId'] as String?;
+            if (callerId != null) ActivityStore.recordMissed(callerId);
+          }
         }
-        _popIfCurrent<IncomingCallScreen>();
       case 'call_rejected':
         _popIfCurrent<OutgoingCallScreen>();
         _toast('Cevaplamadı');
@@ -223,6 +260,10 @@ class CallManager {
   /// Aramaya katılır. IncomingCallScreen açıksa görüşme ekranı ONUN YERİNE
   /// gelir (arada ana ekran görünmez). Başarısız olursa false döner.
   static Future<bool> answerIncoming(IncomingCall call) async {
+    // Önce zil durumu temizlenir: cevap sonrası sunucunun zil belgesini
+    // silmesi handleRingGone'u tetiklememeli.
+    _ringing = null;
+    _ringRoute = null;
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
     // oda _handledRooms kümesinde kalır — yeniden çalmaz
@@ -251,6 +292,10 @@ class CallManager {
         replaceCurrent: true,
         roomName: call.roomName,
       );
+    } on ApiException catch (e) {
+      // 410: arayan bu arada vazgeçmiş — boş odaya bağlanmak yerine bilgi ver.
+      _toast(e.status == 410 ? 'Arama sona ermiş' : 'Aramaya katılınamadı');
+      return false;
     } catch (e, st) {
       debugPrint('HopHop: aramaya katılınamadı: $e\n$st');
       _toast('Aramaya katılınamadı');
@@ -259,6 +304,8 @@ class CallManager {
   }
 
   static Future<void> rejectIncoming(IncomingCall call) async {
+    _ringing = null;
+    _ringRoute = null;
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
     // oda _handledRooms kümesinde kalır — yeniden çalmaz
