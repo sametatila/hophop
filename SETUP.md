@@ -44,6 +44,29 @@ Ya da CLI ile: `cd backend && npm install && vercel --prod`
 Test: `curl -H "X-Admin-Secret: <ADMIN_SECRET>" https://<proje>.vercel.app/api/admin/users`
 → `{"users":[]}` dönerse hazır.
 
+## 3.5) Tanıtım sayfası (hophop.exfe.me)
+
+Aynı Vercel projesi hem API'yi hem tanıtım sayfasını sunar — ayrı proje gerekmez.
+Sayfa `backend/public/` içinde, tek dosya (`index.html`), derleme adımı yok.
+
+- [ ] **Alan adı bağla:** Vercel → proje → **Settings → Domains** → `hophop.exfe.me` ekle
+  → gösterdiği kaydı `exfe.me` DNS'ine gir (genelde `CNAME hophop → cname.vercel-dns.com`)
+  → sertifika birkaç dakikada otomatik çıkar. Kök alan adına dokunulmaz.
+- [ ] **APK indirme butonu.** Buton `/hophop.apk` adresine bakar. Üç seçenek:
+  1. **Herkese açık indirme:** derlenen APK'yı `backend/public/hophop.apk` olarak
+     kopyala ve commit'le. ⚠️ Repo public ise APK GitHub'da da herkese açık olur;
+     plan §3.3 bunu önermiyordu (giriş yine de ad+soyad+doğum tarihi kaydı ister).
+  2. **Yarı kapalı:** APK'yı Drive/S3 gibi bir yere koy, `index.html` içindeki
+     `id="dl"` bağlantısının `href`'ini o adrese çevir.
+  3. **Hiç koyma:** dosya yoksa butona basınca "APK'yı aile yöneticisi doğrudan
+     gönderiyor" uyarısı çıkar; sayfa yine tanıtım işini görür. (Varsayılan durum.)
+- Sosyal medya önizleme görseli `public/og.jpg`; kaynağı `backend/assets/og-source.svg`.
+  Değiştirirsen yeniden üret:
+  `google-chrome-stable --headless --window-size=1200,630 --screenshot=og.png assets/og-source.svg`
+- Tasarım, uygulamanın `app/lib/theme/hop_theme.dart` belirteçlerine bağlı
+  (indigo→mor→camgöbeği degradesi, tavşan markası, Manrope, 18 px köşe). Temayı
+  değiştirirsen sayfadaki `:root` değişkenlerini de güncelle.
+
 ## 4) Aile üyelerini kaydet
 
 ```bash

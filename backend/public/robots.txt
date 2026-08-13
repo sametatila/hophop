@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /hophop.apk
+
+Sitemap: https://hophop.exfe.me/sitemap.xml
