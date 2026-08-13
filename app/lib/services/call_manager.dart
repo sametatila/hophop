@@ -30,9 +30,10 @@ class CallManager {
   static bool _inCall = false;
   static ActiveCall? activeCall;
 
-  /// Şu an çalan odanın adı — FCM ve dinleyici yolları aynı aramayı iki kez
-  /// çaldırmasın diye ortak koruma.
-  static String? _ringingRoom;
+  /// İşlenmiş oda adları — FCM, dinleyici ve yoklama yolları aynı aramayı
+  /// ASLA ikinci kez çaldırmaz (dinleyici yeniden bağlanıp aynı zil belgesini
+  /// tekrar teslim etse bile). Cevaplandıktan sonra da kayıtlı kalır.
+  static final _handledRooms = <String>{};
 
   static void init() {
     _sub?.cancel();
@@ -46,8 +47,8 @@ class CallManager {
   /// üstten bildirim şeridi ÇIKMAZ, zili uygulama kendisi çalar. Uygulama
   /// arka plandaysa bildirim (zil sesli + tam ekran intent) devrede kalır.
   static Future<void> handleRing(IncomingCall ring) async {
-    if (_inCall || ring.roomName == _ringingRoom) return;
-    _ringingRoom = ring.roomName;
+    if (_inCall || _handledRooms.contains(ring.roomName)) return;
+    _handledRooms.add(ring.roomName);
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (foreground) {
@@ -81,7 +82,7 @@ class CallManager {
       case 'call_cancelled':
         await NotificationService.cancelIncomingCall();
         await RingtonePlayer.stop();
-        _ringingRoom = null;
+        // oda _handledRooms kümesinde kalır — yeniden çalmaz
         if (!_inCall) {
           final callerId = data['callerId'] as String?;
           if (callerId != null) ActivityStore.recordMissed(callerId);
@@ -209,7 +210,7 @@ class CallManager {
   static Future<bool> answerIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
-    _ringingRoom = null;
+    // oda _handledRooms kümesinde kalır — yeniden çalmaz
     try {
       final r = await api.respondCall(call.roomName, call.callerId, true, call.video);
       if (call.callerPublicKey.isEmpty || call.roomKeyEnc.isEmpty) {
@@ -245,7 +246,7 @@ class CallManager {
   static Future<void> rejectIncoming(IncomingCall call) async {
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
-    _ringingRoom = null;
+    // oda _handledRooms kümesinde kalır — yeniden çalmaz
     try {
       await api.respondCall(call.roomName, call.callerId, false, call.video);
     } catch (_) {}

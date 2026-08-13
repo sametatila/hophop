@@ -4,9 +4,9 @@ import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
 
-/// Giden arama — "çalıyor" ekranı. Kabul edilince [status] "Bağlanıyor…"a
-/// döner ve CallManager bu ekranı CallScreen ile değiştirir;
-/// red/zaman aşımında kapatılır.
+/// Giden arama ekranı. Gelen arama ekranıyla aynı görsel dil:
+/// çalarken nabız halkaları, bağlanırken halkalar durur + spinner gelir
+/// ve aksiyon butonu gizlenir.
 class OutgoingCallScreen extends StatelessWidget {
   final UserProfile friend;
   final bool video;
@@ -41,58 +41,77 @@ class OutgoingCallScreen extends StatelessWidget {
             ),
             const BlobBackground(dark: true),
             SafeArea(
-          child: SizedBox.expand(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Spacer(),
-                PulseRing(
-                  radius: 78,
-                  child: Avatar(user: friend, radius: 72),
-                ),
-                const SizedBox(height: 24),
-                Text(friend.fullName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ValueListenableBuilder(
-                  valueListenable: status,
-                  builder: (context, s, _) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(video ? Icons.videocam : Icons.call,
-                          color: Colors.white70, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        s == 'connecting'
-                            ? 'Bağlanıyor…'
-                            : (video
-                                ? 'Görüntülü aranıyor…'
-                                : 'Aranıyor…'),
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 18),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 48),
-                  child: GradientOrb(
-                    icon: Icons.call_end,
-                    size: 76,
-                    colors: const [Color(0xFFE85D5D), Color(0xFFC62839)],
-                    onTap: () async {
-                      await onCancel();
-                      if (context.mounted) Navigator.of(context).pop();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+              child: ValueListenableBuilder(
+                valueListenable: status,
+                builder: (context, s, _) {
+                  final connecting = s == 'connecting';
+                  return SizedBox.expand(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Spacer(),
+                        if (connecting)
+                          Avatar(user: friend, radius: 72)
+                        else
+                          PulseRing(
+                            radius: 78,
+                            child: Avatar(user: friend, radius: 72),
+                          ),
+                        const SizedBox(height: 24),
+                        Text(friend.fullName,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(video ? Icons.videocam : Icons.call,
+                                color: Colors.white70, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              connecting
+                                  ? 'Bağlanıyor…'
+                                  : (video
+                                      ? 'Görüntülü aranıyor…'
+                                      : 'Aranıyor…'),
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 18),
+                            ),
+                          ],
+                        ),
+                        if (connecting) ...[
+                          const SizedBox(height: 24),
+                          const CircularProgressIndicator(
+                              color: Colors.white54),
+                        ],
+                        const Spacer(),
+                        if (!connecting)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 48),
+                            child: GradientOrb(
+                              icon: Icons.call_end,
+                              size: 76,
+                              colors: const [
+                                Color(0xFFE85D5D),
+                                Color(0xFFC62839)
+                              ],
+                              onTap: () async {
+                                await onCancel();
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                              },
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 124),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),
