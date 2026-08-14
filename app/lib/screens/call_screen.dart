@@ -167,8 +167,9 @@ class _CallScreenState extends State<CallScreen>
         (elapsed) => _fxClock.value = elapsed.inMilliseconds / 1000)
       ..start();
     WakelockPlus.enable(); // görüşme boyunca ekran kararmasın/kilitlenmesin
-    // ignore: deprecated_member_use
-    Hardware.instance.setSpeakerphoneOn(_speakerOn);
+    // Kulaklık/Bluetooth takılıysa o öncelikli kalır (force verilmiyor) —
+    // kulaklıkla konuşurken sesin hoparlöre kaçmaması için istenen davranış.
+    AudioManager.instance.setSpeakerOutputPreferred(_speakerOn);
   }
 
   /// Ağ koptuğunda: ekranı açık tut, "Yeniden bağlanıyor…" göster ve
@@ -638,9 +639,8 @@ class _CallScreenState extends State<CallScreen>
                               _speakerOn ? Colors.white38 : Colors.white24,
                               () async {
                                 _speakerOn = !_speakerOn;
-                                // ignore: deprecated_member_use
-                                await Hardware.instance
-                                    .setSpeakerphoneOn(_speakerOn);
+                                await AudioManager.instance
+                                    .setSpeakerOutputPreferred(_speakerOn);
                                 setState(() {});
                               },
                             ),
