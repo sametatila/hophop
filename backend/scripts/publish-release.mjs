@@ -101,7 +101,12 @@ const previous = existsSync(versionFile)
   ? JSON.parse(readFileSync(versionFile, 'utf8'))
   : { versionCode: 0 };
 
-if (versionCode <= previous.versionCode && !process.argv.includes('--force')) {
+// İlk yayın istisnası: version.json başlangıç değerini taşıyorsa (henüz hiç
+// sürüm çıkılmamış) aynı sürüm kodu kabul edilir. Aksi hâlde kullanıcı ilk
+// yayında sebepsiz yere sürüm artırmak ya da --force geçmek zorunda kalıyordu.
+const neverPublished = !previous.url || previous.url === '/hophop.apk';
+if (versionCode <= previous.versionCode && !neverPublished &&
+    !process.argv.includes('--force')) {
   die(`pubspec sürüm kodu (${versionCode}) yayındakinden (${previous.versionCode}) büyük değil.\n` +
       '  app/pubspec.yaml içindeki "version: x.y.z+N" satırında N\'yi artır.\n' +
       '  (Android yalnızca bu sayıya bakar; artmazsa güncelleme görünmez.)');
