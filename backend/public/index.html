@@ -304,20 +304,33 @@ footer .fmark{display:inline-flex;align-items:center;gap:9px;font-weight:800;col
   items.forEach(function (el) { io.observe(el); });
 })();
 
-// APK henüz yüklenmediyse indirme 404 ile bitmesin: önce varlığını sor, sonra indir.
-// (Tıklama her hâlükârda durdurulur; asenkron kontrol sonrası elle tetiklenir.)
+// İndirme adresi version.json'dan okunur: APK GitHub Releases'te durduğu
+// için her sürümde bu sayfayı elle güncellemek gerekmesin. Dosya yoksa ya da
+// adres tanımsızsa buton "yönetici gönderiyor" uyarısına düşer.
 (function () {
   var btn = document.getElementById('dl');
   var note = document.querySelector('.note');
-  var checked = false;
+  var ready = false;
+
+  fetch('/version.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (v) {
+      if (!v || !v.url) return;
+      btn.setAttribute('href', v.url);
+      // Dış adres (GitHub) ise tarayıcı indirmeyi kendisi yönetsin.
+      if (/^https?:/.test(v.url)) btn.removeAttribute('download');
+      ready = true;
+      var mb = v.size ? ' · ' + (v.size / 1048576).toFixed(0) + ' MB' : '';
+      note.textContent = 'Sürüm ' + (v.version || '') + mb +
+        ' · Android 7.0 ve üstü · Google Play\'de yok, sadece aileye dağıtılıyor';
+    })
+    .catch(function () {});
+
   btn.addEventListener('click', function (ev) {
-    if (checked) return;                 // kontrol geçildi, normal indirme aksın
+    if (ready) return;               // adres hazır — normal indirme aksın
     ev.preventDefault();
-    fetch(btn.getAttribute('href'), { method: 'HEAD' }).then(function (r) {
-      if (r.ok) { checked = true; btn.click(); return; }
-      note.textContent = 'Kurulum dosyası burada değil — APK\'yı sana aileden gönderiyorlar.';
-      note.style.color = 'var(--kid-orange)';
-    }).catch(function () { checked = true; btn.click(); });
+    note.textContent = 'Kurulum dosyası henüz yayında değil — APK\'yı sana aileden gönderiyorlar.';
+    note.style.color = 'var(--kid-orange)';
   });
 })();
 </script>

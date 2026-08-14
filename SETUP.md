@@ -43,14 +43,14 @@ Aynı Vercel projesi hem API'yi hem tanıtım sayfasını sunar — ayrı proje 
 Sayfa `backend/public/` içinde, tek dosya (`index.html`), derleme adımı yok.
 
 - [x] **Alan adı bağlı** ✅ — https://hophop.exfe.me yayında (sayfa + API aynı proje).
-- [ ] **APK indirme butonu.** Buton `/hophop.apk` adresine bakar. Üç seçenek:
-  1. **Herkese açık indirme:** derlenen APK'yı `backend/public/hophop.apk` olarak
-     kopyala ve commit'le. ⚠️ Repo public ise APK GitHub'da da herkese açık olur;
-     plan §3.3 bunu önermiyordu (giriş yine de ad+soyad+doğum tarihi kaydı ister).
-  2. **Yarı kapalı:** APK'yı Drive/S3 gibi bir yere koy, `index.html` içindeki
-     `id="dl"` bağlantısının `href`'ini o adrese çevir.
-  3. **Hiç koyma:** dosya yoksa butona basınca "APK'yı aile yöneticisi doğrudan
-     gönderiyor" uyarısı çıkar; sayfa yine tanıtım işini görür. (Varsayılan durum.)
+- **İndirme butonu** artık `version.json`'daki adresi okuyor — yeni sürüm
+  çıktıkça sayfayı elle güncellemek gerekmez; buton doğru sürüme bakar ve
+  altında "Sürüm x.y.z · NN MB" yazar. Dosya henüz yoksa "APK'yı sana aileden
+  gönderiyorlar" uyarısına düşer.
+- [ ] **Bir kez kur:** `sudo pacman -S github-cli && gh auth login`
+  APK **GitHub Releases**'e yükleniyor (§6.5): ücretsiz, bant genişliği
+  sınırsız, git geçmişini şişirmez. Depoya commit'lemek her sürümde geçmişe
+  kalıcı 83 MB eklerdi — beş sürümde repo 1.4 MB'tan ~415 MB'a çıkardı.
 - Sosyal medya önizleme görseli `public/og.jpg`; kaynağı `backend/assets/og-source.svg`.
   Değiştirirsen yeniden üret:
   `google-chrome-stable --headless --window-size=1200,630 --screenshot=og.png assets/og-source.svg`
@@ -155,7 +155,7 @@ sunucudaki `version.json` okunuyor. Akış tek komut:
 # 2. Derle (imza anahtarı §4.5'te hazır olmalı)
 cd app && flutter build apk --release --target-platform android-arm64
 
-# 3. Yayınla: APK'yı public/'e kopyalar + version.json'ı günceller
+# 3. Yayınla: APK'yı GitHub Releases'e yükler + version.json'ı günceller
 cd ../backend
 node scripts/publish-release.mjs --notes "Efekt şeridi hızlandı"
 
@@ -176,9 +176,14 @@ Kullanıcı tarafında ne oluyor:
   açıklayan bir diyalog gösterip doğrudan ilgili ayar ekranına götürür.
 - Otomatik denetim 6 saatte bir; ağ yoksa sessizce geçer, kullanıcıyı rahatsız etmez.
 
-APK'yı `public/` yerine Drive/S3 gibi bir yerde tutuyorsan:
-`node scripts/publish-release.mjs --url https://.../hophop.apk` — kopyalama
-yapılmaz, uygulama o adresten iner.
+APK nerede duruyor: **GitHub Releases** — `v1.1.0` etiketi altında
+`hophop-1.1.0.apk`. Betik sürümü kendisi oluşturur; aynı sürüm ikinci kez
+yayınlanırsa varlığı değiştirir. Diğer seçenekler:
+- `--url https://.../hophop.apk` → APK'yı kendin başka yere koyduysan
+- `--local` → eski davranış: `public/hophop.apk`'ya kopyalar (repoyu şişirir)
+
+⚠️ Release varlıkları herkese açıktır (repo zaten public). Giriş yine de
+ad + soyad + doğum tarihi kaydı ister — APK'ya sahip olmak yetmez.
 
 ## 7) İşletme (düzenli)
 

@@ -8,20 +8,26 @@
  * Yaptıkları:
  *   1. app/pubspec.yaml'daki sürümü okur (1.2.0+3 → sürüm 1.2.0, kod 3)
  *   2. Derlenmiş APK'yı bulur, DEBUG anahtarıyla imzalanmışsa uyarır ve durur
- *   3. APK'yı public/hophop.apk olarak kopyalar
+ *   3. APK'yı GitHub Releases'e yükler (bkz. aşağıda)
  *   4. public/version.json'ı günceller (uygulama bunu okuyup güncelleme önerir)
  *
  * Sonrası: git add/commit/push → Vercel otomatik deploy eder.
+ *
+ * APK NEREDE DURUR: varsayılan olarak GitHub Releases'e yüklenir.
+ * Neden: 83 MB'lık dosya git geçmişine girmez (repo 1.4 MB kalır), bant
+ * genişliği sınırsız ve ücretsiz, adres kalıcı. Depoya commit'lemek her
+ * sürümde geçmişe kalıcı 83 MB eklerdi.
  *
  * Seçenekler:
  *   --notes "<metin>"   uygulamada güncelleme kartında görünecek kısa açıklama
  *   --apk <yol>         varsayılan: ../app/build/app/outputs/flutter-apk/app-release.apk
  *   --url <adres>       APK'yı başka yerde barındırıyorsan (Drive/S3) tam adres;
- *                       bu durumda kopyalama yapılmaz
- *   --dry-run           hiçbir dosyaya yazmadan ne olacağını gösterir
+ *                       yükleme de kopyalama da yapılmaz
+ *   --local             GitHub yerine public/hophop.apk'ya kopyala (repoyu şişirir)
+ *   --dry-run           hiçbir şey yüklemeden/yazmadan ne olacağını gösterir
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, copyFileSync, writeFileSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, copyFileSync, writeFileSync, statSync, readdirSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,6 +42,7 @@ function arg(name, fallback = null) {
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 const dryRun = process.argv.includes('--dry-run');
+const useLocal = process.argv.includes('--local');
 const die = (msg) => { console.error(`✗ ${msg}`); process.exit(1); };
 
 // ---- 1) Sürüm ----
@@ -109,8 +116,12 @@ const manifest = {
 };
 
 console.log(`\nSürüm ${version} (kod ${versionCode})`);
-if (!externalUrl) console.log(`APK   ${apkPath}\n      ${(size / 1024 / 1024).toFixed(1)} MB → public/hophop.apk`);
-else console.log(`URL   ${externalUrl} (kopyalama yok)`);
+if (!externalUrl) {
+  const hedef = useLocal ? 'public/hophop.apk' : 'GitHub Releases';
+  console.log(`APK   ${apkPath}\n      ${(size / 1024 / 1024).toFixed(1)} MB → ${hedef}`);
+} else {
+  console.log(`URL   ${externalUrl} (yükleme yok)`);
+}
 if (manifest.notes) console.log(`Not   ${manifest.notes}`);
 
 if (dryRun) {
@@ -119,15 +130,73 @@ if (dryRun) {
   process.exit(0);
 }
 
-if (!externalUrl) copyFileSync(apkPath, join(PUBLIC, 'hophop.apk'));
+if (!externalUrl) {
+  if (useLocal) {
+    copyFileSync(apkPath, join(PUBLIC, 'hophop.apk'));
+    console.log('\n✓ public/hophop.apk kopyalandı (--local)');
+  } else {
+    manifest.url = uploadToGithub(apkPath, version, manifest.notes);
+  }
+}
 writeFileSync(versionFile, `${JSON.stringify(manifest, null, 2)}\n`);
 
-console.log('\n✓ public/version.json güncellendi');
-if (!externalUrl) console.log('✓ public/hophop.apk kopyalandı');
+console.log('\n✓ public/version.json güncellendi → ' + manifest.url);
 console.log('\nSıradaki adım:');
 console.log('  git add backend/public && git commit -m "Sürüm ' + version + '" && git push');
 console.log('  → Vercel deploy eder, uygulamalar 6 saat içinde güncellemeyi görür');
 console.log('    (Ayarlar → Uygulama sürümü → Denetle ile hemen de bakılabilir)');
+
+/** APK'yı GitHub Releases'e yükler, indirilebilir adresi döndürür.
+ * Aynı sürüm ikinci kez yayınlanırsa varlık üzerine yazılır (--clobber). */
+function uploadToGithub(apk, version, notes) {
+  const tag = `v${version}`;
+  const asset = `hophop-${version}.apk`;
+  const slug = repoSlug();
+  const run = (args) =>
+    execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+  try {
+    execFileSync('gh', ['--version'], { stdio: 'ignore' });
+  } catch {
+    die('gh (GitHub CLI) bulunamadı.\n' +
+        '  Kur: sudo pacman -S github-cli   (sonra: gh auth login)\n' +
+        '  Ya da APK\'yı elle yükleyip: node scripts/publish-release.mjs --url <adres>');
+  }
+
+  const tmp = join(dirname(apk), asset);
+  copyFileSync(apk, tmp); // varlık adı sürümü taşısın
+  try {
+    let exists = true;
+    try {
+      run(['release', 'view', tag]);
+    } catch {
+      exists = false;
+    }
+    if (exists) {
+      console.log(`\n↑ ${tag} sürümü var — varlık güncelleniyor…`);
+      run(['release', 'upload', tag, tmp, '--clobber']);
+    } else {
+      console.log(`\n↑ ${tag} sürümü oluşturuluyor…`);
+      run(['release', 'create', tag, tmp,
+           '--title', `HopHop ${version}`,
+           '--notes', notes || `HopHop ${version}`]);
+    }
+  } catch (e) {
+    die(`GitHub'a yükleme başarısız: ${e.stderr?.toString?.() ?? e.message}`);
+  } finally {
+    try { unlinkSync(tmp); } catch {}
+  }
+  console.log('✓ GitHub Releases\'e yüklendi');
+  return `https://github.com/${slug}/releases/download/${tag}/${asset}`;
+}
+
+/** origin uzak adresinden "kullanıcı/repo" çıkarır. */
+function repoSlug() {
+  const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+  const m = url.match(/github\.com[:/](.+?)(?:\.git)?$/);
+  if (!m) die(`origin GitHub deposu değil: ${url}`);
+  return m[1];
+}
 
 /** java PATH'te yoksa Android Studio'nun paketlediği JDK'yı bulur. */
 function javaHome() {
