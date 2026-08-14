@@ -11,7 +11,9 @@ class OutgoingCallScreen extends StatelessWidget {
   final UserProfile friend;
   final bool video;
   final Future<void> Function() onCancel;
-  final ValueNotifier<String> status; // 'ringing' | 'connecting'
+  /// 'ringing' (bildirim yollandı) · 'ringing_ok' (karşı cihaz çaldığını
+  /// doğruladı) · 'unreachable' (hiçbir cihaza teslim edilemedi) · 'connecting'
+  final ValueNotifier<String> status;
 
   const OutgoingCallScreen({
     super.key,
@@ -20,6 +22,24 @@ class OutgoingCallScreen extends StatelessWidget {
     required this.onCancel,
     required this.status,
   });
+
+  /// Arayan taraf ne olup bittiğini bu satırdan anlar.
+  static String _statusText(String status, bool video) => switch (status) {
+        'connecting' => 'Bağlanıyor…',
+        // Karşı cihaz "çaldım" dedi — artık tahmin değil, bilgi.
+        'ringing_ok' => 'Telefonu çalıyor…',
+        'unreachable' => 'Telefonuna ulaşılamıyor',
+        _ => video ? 'Görüntülü aranıyor…' : 'Aranıyor…',
+      };
+
+  /// Ulaşılamama hâlinde tek satır açıklama — kullanıcı neden beklediğini bilsin.
+  static String? _statusHint(String status) => switch (status) {
+        'unreachable' =>
+          'Telefonu kapalı ya da internete bağlı değil. Yine de birkaç saniye '
+              'deneyeceğiz; açılırsa çalacak.',
+        'ringing' => 'Bildirim gönderildi, cihazından yanıt bekleniyor…',
+        _ => null,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -71,16 +91,25 @@ class OutgoingCallScreen extends StatelessWidget {
                                 color: Colors.white70, size: 20),
                             const SizedBox(width: 8),
                             Text(
-                              connecting
-                                  ? 'Bağlanıyor…'
-                                  : (video
-                                      ? 'Görüntülü aranıyor…'
-                                      : 'Aranıyor…'),
+                              _statusText(s, video),
                               style: const TextStyle(
                                   color: Colors.white70, fontSize: 18),
                             ),
                           ],
                         ),
+                        if (_statusHint(s) != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(32, 10, 32, 0),
+                            child: Text(
+                              _statusHint(s)!,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: s == 'unreachable'
+                                      ? Colors.orangeAccent
+                                      : Colors.white54,
+                                  fontSize: 14),
+                            ),
+                          ),
                         if (connecting) ...[
                           const SizedBox(height: 24),
                           const CircularProgressIndicator(

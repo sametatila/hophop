@@ -59,6 +59,7 @@ class FcmService {
       case 'call_cancelled':
       case 'call_rejected':
       case 'call_accepted':
+      case 'call_ringing':
         // Bildirim/zil kararını CallManager verir: ön plandaysa yalnızca
         // ekran + uygulama içi zil (üstten şerit ÇIKMAZ, WhatsApp gibi).
         callEvents.add(message);
@@ -110,8 +111,17 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   await NotificationService.init(onResponse: (_) {});
   switch (message.data['type']) {
     case 'incoming_call':
-      await NotificationService.showIncomingCall(
-          IncomingCall.fromData(message.data));
+      final ring = IncomingCall.fromData(message.data);
+      await NotificationService.showIncomingCall(ring);
+      // Uygulama arka plandayken de arayana "çalıyor" bilgisini gönder —
+      // asıl önemli durum bu: ekran kapalı, telefon çalıyor.
+      final ringToken = await AuthService.readToken();
+      if (ringToken != null) {
+        api.setToken(ringToken);
+        try {
+          await api.notifyRinging(ring.roomName, ring.callerId);
+        } catch (_) {}
+      }
     case 'call_cancelled':
       await NotificationService.cancelIncomingCall();
       // Cevapsız arama: arka planda dosyaya işlenir, açılışta rozete döner.

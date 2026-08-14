@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Güvenilirlik: çalan arama sunucuya da yazılır — push kaybolsa bile
   // aranan cihaz yoklama (polling) ile aramayı yakalar.
-  const [token] = await Promise.all([
+  const [token, push] = await Promise.all([
     roomToken(roomName, userId, callerName),
     pushToUser(calleeId, ringPayload),
     db().collection('rings').doc(calleeId).set({ ...ringPayload, atMs: Date.now() }),
@@ -57,5 +57,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     livekitToken: token,
     livekitUrl: livekitUrl(),
     calleePublicKey: calleeSnap.get('publicKey') ?? null,
+    // Arayan ekranı "ne oluyor?" sorusunu buna göre yanıtlar:
+    // devices 0 → kişinin kayıtlı cihazı yok, telefonu hiç çalmayacak.
+    // delivered 0 → gönderim kabul edilmedi (token'lar ölü).
+    // delivered > 0 → FCM kabul etti; telefon kapalı/çevrimdışıysa yine de
+    // çalmayabilir, bu yüzden gerçek "çalıyor" bilgisi ayrıca gelir.
+    devices: push.devices,
+    delivered: push.delivered,
   });
 }

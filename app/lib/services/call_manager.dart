@@ -66,6 +66,14 @@ class CallManager {
     }
     _handledRooms.add(ring.roomName);
     _ringing = ring;
+    // Arayana "telefonu gerçekten çalıyor" de. Bildirimin FCM tarafından kabul
+    // edilmesi çaldığı anlamına gelmiyordu; arayan bu onay gelmezse boşuna
+    // bekliyordu. Başarısız olursa arama akışı etkilenmez.
+    unawaited(() async {
+      try {
+        await api.notifyRinging(ring.roomName, ring.callerId);
+      } catch (_) {}
+    }());
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (foreground) {
@@ -175,7 +183,9 @@ class CallManager {
       String roomName,
       String livekitToken,
       String livekitUrl,
-      String? calleePublicKey
+      String? calleePublicKey,
+      int devices,
+      int delivered,
     }) r;
     // Oda anahtarını BİZ üretiriz; karşıya yalnızca ona özel sarılmış hali gider.
     final roomKey = crypto.generateRoomKey();
@@ -193,7 +203,12 @@ class CallManager {
     }
 
     var settled = false; // kabul, red veya iptal gerçekleşti mi
-    final status = ValueNotifier<String>('ringing');
+    // 'ringing'      → bildirim yollandı, karşı cihazdan haber yok
+    // 'ringing_ok'   → karşı cihaz "çalıyorum" dedi (gerçekten çalıyor)
+    // 'unreachable'  → bildirim hiçbir cihaza teslim edilemedi
+    // 'connecting'   → kabul edildi, odaya giriliyor
+    final status = ValueNotifier<String>(
+        r.devices == 0 || r.delivered == 0 ? 'unreachable' : 'ringing');
     StreamSubscription? sub;
     Timer? timeout;
 
@@ -205,6 +220,11 @@ class CallManager {
     sub = FcmService.callEvents.stream.listen((message) async {
       final data = Map<String, dynamic>.from(message.data as Map);
       if (data['roomName'] != r.roomName) return;
+      if (data['type'] == 'call_ringing' && !settled) {
+        // Karşı cihaz bildirimi aldı ve zili çaldırdı — artık eminiz.
+        if (status.value != 'connecting') status.value = 'ringing_ok';
+        return;
+      }
       if (data['type'] == 'call_accepted' && !settled) {
         settled = true;
         cleanup();
@@ -234,7 +254,11 @@ class CallManager {
         await api.cancelCall(r.roomName, friend.id, video);
       } catch (_) {}
       _popIfCurrent<OutgoingCallScreen>();
-      _toast('Cevaplamadı');
+      // Telefonu hiç çalmadıysa "cevaplamadı" demek yanıltıcı olur.
+      _toast(status.value == 'ringing_ok'
+          ? 'Cevaplamadı'
+          : '${friend.firstName} kişisine ulaşılamadı — telefonu kapalı ya da '
+              'çevrimdışı olabilir');
     });
 
     await nav.push(MaterialPageRoute(

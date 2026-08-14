@@ -80,9 +80,10 @@ class _ContactsScreenState extends State<ContactsScreen> with TabRefresh {
             : _users.isEmpty
                 ? const EmptyState(
                     icon: Icons.diversity_3,
-                    title: 'Ailede başka kimse yok',
+                    title: 'Burada henüz kimse yok',
                     subtitle:
-                        'Yeni üyeler eklendiğinde burada görünecekler.')
+                        'Aile üyeleri uygulamaya ilk kez girdiklerinde '
+                        'burada görünürler.')
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     itemCount: _users.length,

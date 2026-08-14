@@ -26,6 +26,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const users = usersSnap.docs
     .filter((d) => d.id !== userId)
+    // Uygulamayı hiç açmamış kişiler rehberde GÖRÜNMEZ. Yönetici bilgilerini
+    // önceden işler ama kişi ilk girişte cihazında E2EE açık anahtarını üretir;
+    // o olmadan aranamaz ve mesajlaşamaz. Listede görünseydi, kullanmayan
+    // birini arayıp boşuna beklerdik. Kişi bir kez girdiğinde kendiliğinden
+    // rehberde belirir (arkadaşlıklar bu süzgeçten etkilenmez).
+    .filter((d) => !!d.get('publicKey'))
     .map((d) => ({
       ...toPublicProfile(d),
       friendStatus: friendPairs.has(pairId(userId, d.id))

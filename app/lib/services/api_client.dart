@@ -121,7 +121,9 @@ class ApiClient {
         String roomName,
         String livekitToken,
         String livekitUrl,
-        String? calleePublicKey
+        String? calleePublicKey,
+        int devices,
+        int delivered,
       })> initiateCall(String calleeId, bool video, String roomKeyEnc) async {
     final r = await _request('POST', '/api/call/initiate',
         {'calleeId': calleeId, 'video': video, 'roomKeyEnc': roomKeyEnc});
@@ -130,8 +132,17 @@ class ApiClient {
       livekitToken: r['livekitToken'] as String,
       livekitUrl: r['livekitUrl'] as String,
       calleePublicKey: r['calleePublicKey'] as String?,
+      // devices: karşı tarafın kayıtlı cihaz sayısı, delivered: bildirimi
+      // kabul eden cihaz sayısı. Arayan ekranı ne yazacağını buna göre seçer.
+      devices: (r['devices'] as num?)?.toInt() ?? 1,
+      delivered: (r['delivered'] as num?)?.toInt() ?? 1,
     );
   }
+
+  /// Aranan cihaz "telefonum çalıyor" der; arayan taraf gerçek durumu görür.
+  Future<void> notifyRinging(String roomName, String callerId) =>
+      _request('POST', '/api/call/ringing',
+          {'roomName': roomName, 'callerId': callerId});
 
   Future<({String livekitToken, String livekitUrl, String? callerPublicKey})>
       respondCall(String roomName, String callerId, bool accept, bool video,

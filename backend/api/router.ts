@@ -12,6 +12,7 @@ import friendsRequests from '../lib/handlers/friends-requests.js';
 import callInitiate from '../lib/handlers/call-initiate.js';
 import callRespond from '../lib/handlers/call-respond.js';
 import callCancel from '../lib/handlers/call-cancel.js';
+import callRinging from '../lib/handlers/call-ringing.js';
 import callInvite from '../lib/handlers/call-invite.js';
 import callPending from '../lib/handlers/call-pending.js';
 import callEnded from '../lib/handlers/call-ended.js';
@@ -36,6 +37,7 @@ const routes: Record<string, Handler> = {
   'call/initiate': callInitiate,
   'call/respond': callRespond,
   'call/cancel': callCancel,
+  'call/ringing': callRinging,
   'call/invite': callInvite,
   'call/pending': callPending,
   'call/ended': callEnded,
