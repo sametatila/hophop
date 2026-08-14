@@ -69,6 +69,23 @@ if (!externalUrl) {
   }
   size = statSync(apkPath).size;
 
+  // APK gerçekten pubspec'teki sürüm mü? Sürümü artırıp yeniden derlemeyi
+  // unutmak sessiz bir hatadır: eski APK yeni sürüm numarasıyla yayınlanır,
+  // cihazlar "güncellendi" sanır ama aynı uygulamayı kurar.
+  const badge = aaptBadging(apkPath);
+  if (badge) {
+    if (badge.versionCode !== versionCode || badge.versionName !== version) {
+      die(`APK sürümü pubspec ile uyuşmuyor.\n` +
+          `  pubspec: ${version} (kod ${versionCode})\n` +
+          `  APK    : ${badge.versionName} (kod ${badge.versionCode})\n` +
+          '  Sürümü artırdıysan yeniden derle:\n' +
+          '    cd app && flutter build apk --release --target-platform android-arm64');
+    }
+    console.log(`✓ Sürüm kontrolü: APK ${badge.versionName} (kod ${badge.versionCode})`);
+  } else {
+    console.warn('⚠ aapt bulunamadı — APK sürüm kontrolü atlandı.');
+  }
+
   // Debug anahtarıyla imzalanmış APK dağıtılırsa bir daha güncelleme kurulamaz.
   const signer = findApksigner();
   if (signer) {
@@ -203,6 +220,23 @@ function repoSlug() {
   return m[1];
 }
 
+/** APK'nın kendi bildirdiği sürüm (aapt dump badging). Bulunamazsa null. */
+function aaptBadging(apk) {
+  const aapt = findBuildTool('aapt');
+  if (!aapt) return null;
+  try {
+    const out = execFileSync(aapt, ['dump', 'badging', apk], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const code = out.match(/versionCode='(\d+)'/);
+    const name = out.match(/versionName='([^']*)'/);
+    if (!code || !name) return null;
+    return { versionCode: Number(code[1]), versionName: name[1] };
+  } catch {
+    return null;
+  }
+}
+
 /** java PATH'te yoksa Android Studio'nun paketlediği JDK'yı bulur. */
 function javaHome() {
   if (process.env.JAVA_HOME) return process.env.JAVA_HOME;
@@ -213,16 +247,20 @@ function javaHome() {
   return null;
 }
 
-/** Android SDK build-tools içindeki en yeni apksigner'ı bulur. */
-function findApksigner() {
+/** Android SDK build-tools içindeki en yeni <ad> aracını bulur. */
+function findBuildTool(name) {
   const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT ||
     join(process.env.HOME ?? '', 'Android/Sdk');
   const dir = join(sdk, 'build-tools');
   if (!existsSync(dir)) return null;
-  const versions = readdirSync(dir).sort();
-  for (const v of versions.reverse()) {
-    const p = join(dir, v, 'apksigner');
+  for (const v of readdirSync(dir).sort().reverse()) {
+    const p = join(dir, v, name);
     if (existsSync(p)) return p;
   }
   return null;
+}
+
+/** Kullanımdan ÖNCE tanımlı olmalı → fonksiyon bildirimi (const hoist edilmez). */
+function findApksigner() {
+  return findBuildTool('apksigner');
 }
