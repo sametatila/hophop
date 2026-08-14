@@ -1,7 +1,11 @@
 package com.hophop.hophop
 
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.util.Rational
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -20,6 +24,15 @@ import java.io.File
 /// taşımaya değmez.
 class MainActivity : FlutterActivity() {
     private val channel = "hophop/updater"
+
+    /// Küçük pencere (Picture-in-Picture) köprüsü. Ayrı kanal, çünkü tek yön
+    /// değil: sistem kipi değiştirdiğinde Flutter'a haber vermemiz gerekiyor.
+    private val pipChannelName = "hophop/pip"
+    private var pipChannel: MethodChannel? = null
+
+    /// Yalnızca görüşme sürerken küçük pencereye geçilir. Ana ekranda ev
+    /// tuşuna basınca uygulama küçülmemeli.
+    private var pipEligible = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -69,6 +82,55 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, pipChannelName)
+        pipChannel!!.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isSupported" -> result.success(pipSupported())
+                // Görüşme başlarken açılır, biterken kapanır.
+                "setEligible" -> {
+                    pipEligible = call.argument<Boolean>("on") == true
+                    result.success(null)
+                }
+                // Geri tuşu ya da küçült düğmesi
+                "enter" -> result.success(
+                    enterPip(call.argument<Int>("w") ?: 16, call.argument<Int>("h") ?: 9))
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun pipSupported(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    private fun enterPip(w: Int, h: Int): Boolean {
+        if (!pipSupported()) return false
+        return try {
+            // Android en/boy oranını 0.42–2.39 arasında ister; dışına taşarsa
+            // istisna fırlatır ve görüşme ekranı çöker.
+            val ratio = Rational(w.coerceIn(10, 239), h.coerceIn(10, 239))
+            val params = PictureInPictureParams.Builder().setAspectRatio(ratio).build()
+            enterPictureInPictureMode(params)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /// Ev tuşuna basıldı ya da uygulama arka plana alınıyor: görüşme sürüyorsa
+    /// kapanmak yerine küçük pencereye geç (WhatsApp davranışı).
+    override fun onUserLeaveHint() {
+        if (pipEligible && pipSupported()) enterPip(16, 9)
+        super.onUserLeaveHint()
+    }
+
+    /// Flutter tarafı küçük pencerede sade bir düzene geçebilsin diye haber ver.
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        pipChannel?.invokeMethod("changed", isInPictureInPictureMode)
     }
 
     /// Yakınlık sensörüyle ekranı kapatan sistem kilidi. Ahize kipinde açılır,

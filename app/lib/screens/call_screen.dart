@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
 import '../services/crypto_service.dart';
+import '../services/pip_service.dart';
 import '../services/update_service.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
@@ -57,6 +58,7 @@ class _CallScreenState extends State<CallScreen>
   late bool _camOn = widget.videoCall;
   late bool _speakerOn = widget.videoCall; // görüntülüde hoparlör varsayılan
   bool _showEffects = false;
+  bool _pipSupported = false;
   bool _reconnecting = false; // zayıf bağlantı: "Yeniden bağlanıyor…" durumu
   bool _peerLost = false; // karşı tarafın bağlantısı gitti (biz iyiyiz)
   bool _recovering = false; // kendi yeniden bağlanma döngümüz sürüyor
@@ -172,12 +174,35 @@ class _CallScreenState extends State<CallScreen>
     // kulaklıkla konuşurken sesin hoparlöre kaçmaması için istenen davranış.
     AudioManager.instance.setSpeakerOutputPreferred(_speakerOn);
     _applyProximity();
+    // Görüşme boyunca ev tuşu/geri tuşu uygulamayı kapatmasın, küçük pencereye
+    // geçirsin. Ekran kapanırken kapatılır (dispose).
+    PipService.setEligible(true);
+    PipService.isSupported().then((ok) {
+      if (mounted && ok) setState(() => _pipSupported = true);
+    });
+    PipService.inPip.addListener(_onPipChanged);
   }
 
   /// Ahizeye alındıysa (hoparlör kapalı) yakınlık sensörü devrede: telefon
   /// kulağa götürülünce ekran kapanır. Görüntülüde/hoparlörde kapalı —
   /// yoksa ekran karşındakini izlerken sönerdi.
   void _applyProximity() => UpdateService.setProximity(!_speakerOn);
+
+  void _onPipChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Ekranda gösterilecek bir görüntü var mı (kendi kameram ya da karşıdan
+  /// gelen)? Küçük pencerenin en-boy oranını buna göre seçiyoruz.
+  bool get _hasVideo =>
+      _camOn ||
+      widget.room.remoteParticipants.values.any((p) => _videoOf(p) != null);
+
+  /// Küçük pencereye geç. Görüntülüde 16:9; seslide kare, çünkü o pencerede
+  /// avatar gösteriliyor ve geniş dikdörtgen tuhaf duruyor.
+  Future<void> _minimize() async {
+    await PipService.enter(w: _hasVideo ? 16 : 1, h: _hasVideo ? 9 : 1);
+  }
 
   /// Ağ koptuğunda: ekranı açık tut, "Yeniden bağlanıyor…" göster ve
   /// [_recoveryWindow] boyunca odaya yeniden katılmayı dene. Kullanıcı bu
@@ -222,6 +247,8 @@ class _CallScreenState extends State<CallScreen>
   void dispose() {
     WakelockPlus.disable();
     UpdateService.setProximity(false);
+    PipService.inPip.removeListener(_onPipChanged);
+    PipService.setEligible(false);
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
     _peerLostTimer?.cancel();
@@ -403,8 +430,17 @@ class _CallScreenState extends State<CallScreen>
       ..sort((a, b) => a.identity.compareTo(b.identity));
     final local = _localVideo;
 
+    // Küçük pencerede yalnızca görüntü/avatar kalır: kontroller, üst bilgi ve
+    // efekt paneli gizlenir — o boyutta hepsi okunmaz bir yığına dönüyor.
+    final pip = PipService.inPip.value;
+
     return PopScope(
+      // Geri tuşu görüşmeyi BİTİRMEZ; WhatsApp gibi küçük pencereye geçer.
+      // Desteklemeyen cihazda ekran olduğu gibi kalır (kapatma kırmızı düğmede).
       canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _minimize();
+      },
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
@@ -423,56 +459,80 @@ class _CallScreenState extends State<CallScreen>
                 children: [for (final p in remotes) _remoteTile(p)],
               ),
 
-            // ---- Üst bilgi ----
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: GlassPanel(
-                    radius: 20,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _reconnecting || _peerLost
-                              ? Icons.wifi_off
-                              : Icons.lock,
-                          color: _reconnecting || _peerLost
-                              ? Colors.orangeAccent
-                              : Colors.greenAccent,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _reconnecting
-                              ? 'Yeniden bağlanıyor…'
-                              : _peerLost
-                                  ? '${widget.peer.firstName} bağlantısını kaybetti…'
-                                  : '$_title · $_timer',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 14),
-                        ),
-                        if (_reconnecting || _peerLost) ...[
-                          const SizedBox(width: 8),
-                          const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white70),
-                          ),
-                        ],
-                      ],
+            // ---- Küçült (sol üst) ----
+            // Geri tuşunun görsel karşılığı: aramayı kapatmadan küçük pencereye
+            // geçirir. Desteklemeyen cihazda hiç gösterilmez.
+            if (!pip && _pipSupported)
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 8),
+                    child: Pressable(
+                      onTap: _minimize,
+                      child: GlassPanel(
+                        radius: 18,
+                        tint: Colors.black26,
+                        padding: const EdgeInsets.all(9),
+                        child: const Icon(Icons.picture_in_picture_alt,
+                            color: Colors.white, size: 22),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+
+            // ---- Üst bilgi ----
+            if (!pip)
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: GlassPanel(
+                      radius: 20,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 7),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _reconnecting || _peerLost
+                                ? Icons.wifi_off
+                                : Icons.lock,
+                            color: _reconnecting || _peerLost
+                                ? Colors.orangeAccent
+                                : Colors.greenAccent,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _reconnecting
+                                ? 'Yeniden bağlanıyor…'
+                                : _peerLost
+                                    ? '${widget.peer.firstName} bağlantısını kaybetti…'
+                                    : '$_title · $_timer',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 14),
+                          ),
+                          if (_reconnecting || _peerLost) ...[
+                            const SizedBox(width: 8),
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white70),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             // ---- Yerel önizleme (dokun: kamera değiştir) ----
-            if (local != null && _camOn)
+            if (local != null && _camOn && !pip)
               SafeArea(
                 child: Align(
                   alignment: Alignment.topRight,
@@ -495,9 +555,8 @@ class _CallScreenState extends State<CallScreen>
                                     CustomPaint(
                                   foregroundPainter: EffectPainter(localFrame,
                                       smoother: _fx.localSmooth,
-                                      clock: localFrame == null
-                                          ? null
-                                          : _fxClock),
+                                      clock:
+                                          localFrame == null ? null : _fxClock),
                                   child: VideoTrackRenderer(local),
                                 ),
                               ),
@@ -517,171 +576,176 @@ class _CallScreenState extends State<CallScreen>
               ),
 
             // ---- Alt katman: efekt seçici + kontroller ----
-            // Tek bir kolonda ve tek SafeArea içinde duruyorlar: efekt paneli
-            // her cihazda kontrollerin TAM ÜSTÜNDE açılır. (Önceden ayrı
-            // Align'lardı; sabit 112 px pay jest çubuğu olan telefonlarda
-            // yetmiyor, üstelik kontroller sonra çizildiği için paneli
-            // örtüyordu.)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_showEffects)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        constraints: BoxConstraints(
-                            maxWidth: (MediaQuery.sizeOf(context).width - 24)
-                                .clamp(0.0, 460.0)),
-                        child: GlassPanel(
-                          radius: 20,
-                          padding: const EdgeInsets.all(8),
-                          tint: Colors.black38,
-                          child: ValueListenableBuilder(
-                            valueListenable: _fx.effect,
-                            builder: (context, current, _) => Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Kapat: efekt yok
-                                    _fxCatChip(
-                                      selected: current == 'none',
-                                      icon: Icons.block,
-                                      label: 'Yok',
-                                      onTap: () => _fx.effect.value = 'none',
-                                    ),
-                                    for (final cat in fxCategories)
-                                      _fxCatChip(
-                                        selected: _fxCat == cat.id,
-                                        icon: cat.icon,
-                                        label: cat.label,
-                                        onTap: () =>
-                                            setState(() => _fxCat = cat.id),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                SizedBox(
-                                  height: 68,
-                                  child: ListView(
-                                    scrollDirection: Axis.horizontal,
+            if (!pip)
+              // Tek bir kolonda ve tek SafeArea içinde duruyorlar: efekt paneli
+              // her cihazda kontrollerin TAM ÜSTÜNDE açılır. (Önceden ayrı
+              // Align'lardı; sabit 112 px pay jest çubuğu olan telefonlarda
+              // yetmiyor, üstelik kontroller sonra çizildiği için paneli
+              // örtüyordu.)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_showEffects)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          constraints: BoxConstraints(
+                              maxWidth: (MediaQuery.sizeOf(context).width - 24)
+                                  .clamp(0.0, 460.0)),
+                          child: GlassPanel(
+                            radius: 20,
+                            padding: const EdgeInsets.all(8),
+                            tint: Colors.black38,
+                            child: ValueListenableBuilder(
+                              valueListenable: _fx.effect,
+                              builder: (context, current, _) => Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      for (final e in fxCategories
-                                          .firstWhere((c) => c.id == _fxCat)
-                                          .effects)
-                                        Pressable(
-                                          onTap: () => _fx.effect.value = e.id,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
-                                            margin: const EdgeInsets.symmetric(
-                                                horizontal: 3),
-                                            decoration: BoxDecoration(
-                                              color: current == e.id
-                                                  ? Colors.white24
-                                                  : Colors.transparent,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                EffectThumb(
-                                                    effectId: e.id, size: 40),
-                                                const SizedBox(height: 2),
-                                                Text(e.label,
-                                                    style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 11)),
-                                              ],
-                                            ),
-                                          ),
+                                      // Kapat: efekt yok
+                                      _fxCatChip(
+                                        selected: current == 'none',
+                                        icon: Icons.block,
+                                        label: 'Yok',
+                                        onTap: () => _fx.effect.value = 'none',
+                                      ),
+                                      for (final cat in fxCategories)
+                                        _fxCatChip(
+                                          selected: _fxCat == cat.id,
+                                          icon: cat.icon,
+                                          label: cat.label,
+                                          onTap: () =>
+                                              setState(() => _fxCat = cat.id),
                                         ),
                                     ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 6),
+                                  SizedBox(
+                                    height: 68,
+                                    child: ListView(
+                                      scrollDirection: Axis.horizontal,
+                                      children: [
+                                        for (final e in fxCategories
+                                            .firstWhere((c) => c.id == _fxCat)
+                                            .effects)
+                                          Pressable(
+                                            onTap: () =>
+                                                _fx.effect.value = e.id,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 3),
+                                              decoration: BoxDecoration(
+                                                color: current == e.id
+                                                    ? Colors.white24
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  EffectThumb(
+                                                      effectId: e.id, size: 40),
+                                                  const SizedBox(height: 2),
+                                                  Text(e.label,
+                                                      style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 11)),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
 
-                    // ---- Kontroller: cam panel üzerinde degrade butonlar ----
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      child: GlassPanel(
-                        radius: 32,
-                        tint: Colors.black26,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _controlButton(
-                              _micOn ? Icons.mic : Icons.mic_off,
-                              _micOn ? Colors.white24 : Colors.orange,
-                              () async {
-                                _micOn = !_micOn;
-                                await widget.room.localParticipant
-                                    ?.setMicrophoneEnabled(_micOn);
-                                setState(() {});
-                              },
-                            ),
-                            _controlButton(
-                              _camOn ? Icons.videocam : Icons.videocam_off,
-                              _camOn ? Colors.white24 : Colors.orange,
-                              () async {
-                                _camOn = !_camOn;
-                                await widget.room.localParticipant
-                                    ?.setCameraEnabled(_camOn);
-                                setState(() {});
-                              },
-                            ),
-                            _controlButton(
-                              _speakerOn
-                                  ? Icons.volume_up
-                                  : Icons.phone_in_talk,
-                              _speakerOn ? Colors.white38 : Colors.white24,
-                              () async {
-                                _speakerOn = !_speakerOn;
-                            _applyProximity();
-                                await AudioManager.instance
-                                    .setSpeakerOutputPreferred(_speakerOn);
-                                setState(() {});
-                              },
-                            ),
-                            _controlButton(
-                              Icons.person_add,
-                              Colors.white24,
-                              _openInviteSheet,
-                            ),
-                            _controlButton(
-                              Icons.auto_awesome,
-                              _showEffects ? Colors.purple : Colors.white24,
-                              () =>
-                                  setState(() => _showEffects = !_showEffects),
-                            ),
-                            const SizedBox(width: 4),
-                            GradientOrb(
-                              icon: Icons.call_end,
-                              size: 58,
-                              colors: const [
-                                Color(0xFFE85D5D),
-                                Color(0xFFC62839)
-                              ],
-                              onTap: () => Navigator.of(context).pop(),
-                            ),
-                          ],
+                      // ---- Kontroller: cam panel üzerinde degrade butonlar ----
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: GlassPanel(
+                          radius: 32,
+                          tint: Colors.black26,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _controlButton(
+                                _micOn ? Icons.mic : Icons.mic_off,
+                                _micOn ? Colors.white24 : Colors.orange,
+                                () async {
+                                  _micOn = !_micOn;
+                                  await widget.room.localParticipant
+                                      ?.setMicrophoneEnabled(_micOn);
+                                  setState(() {});
+                                },
+                              ),
+                              _controlButton(
+                                _camOn ? Icons.videocam : Icons.videocam_off,
+                                _camOn ? Colors.white24 : Colors.orange,
+                                () async {
+                                  _camOn = !_camOn;
+                                  await widget.room.localParticipant
+                                      ?.setCameraEnabled(_camOn);
+                                  setState(() {});
+                                },
+                              ),
+                              _controlButton(
+                                _speakerOn
+                                    ? Icons.volume_up
+                                    : Icons.phone_in_talk,
+                                _speakerOn ? Colors.white38 : Colors.white24,
+                                () async {
+                                  _speakerOn = !_speakerOn;
+                                  _applyProximity();
+                                  await AudioManager.instance
+                                      .setSpeakerOutputPreferred(_speakerOn);
+                                  setState(() {});
+                                },
+                              ),
+                              _controlButton(
+                                Icons.person_add,
+                                Colors.white24,
+                                _openInviteSheet,
+                              ),
+                              _controlButton(
+                                Icons.auto_awesome,
+                                _showEffects ? Colors.purple : Colors.white24,
+                                () => setState(
+                                    () => _showEffects = !_showEffects),
+                              ),
+                              const SizedBox(width: 4),
+                              GradientOrb(
+                                icon: Icons.call_end,
+                                size: 58,
+                                colors: const [
+                                  Color(0xFFE85D5D),
+                                  Color(0xFFC62839)
+                                ],
+                                onTap: () => Navigator.of(context).pop(),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
