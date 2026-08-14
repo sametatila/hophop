@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { db } from '../firebase.js';
 import { requireAuth } from '../auth.js';
-import { areFriends, toPublicProfile } from '../users.js';
+import { areFriends, toPublicProfile, IDENTITY_FIELDS } from '../users.js';
 import { pushToUser } from '../fcm.js';
 import { participantCount, participantNames } from '../livekit.js';
 import { requireMethod, badRequest, str } from '../http.js';
@@ -32,7 +32,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(409).json({ error: 'room_full', max: MAX_PARTICIPANTS });
   }
 
-  const meSnap = await db().collection('users').doc(userId).get();
+  // Fotoğraf gerekmiyor (bkz. call-initiate) — yalnızca kimlik alanları.
+  const [meSnap] = await db().getAll(db().collection('users').doc(userId), {
+    fieldMask: [...IDENTITY_FIELDS],
+  });
   const me = toPublicProfile(meSnap);
 
   const ringPayload = {

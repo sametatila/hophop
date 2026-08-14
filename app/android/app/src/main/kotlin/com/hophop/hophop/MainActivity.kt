@@ -1,8 +1,10 @@
 package com.hophop.hophop
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -56,9 +58,41 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    // Ahize kipinde yakınlık sensörü: telefon kulağa
+                    // götürülünce ekran kapansın. Olmadığında kullanıcı yanağıyla
+                    // sessize alma/kapatma düğmelerine basıyordu.
+                    "proximity" -> {
+                        setProximity(call.argument<Boolean>("on") == true)
+                        result.success(null)
+                    }
+
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /// Yakınlık sensörüyle ekranı kapatan sistem kilidi. Ahize kipinde açılır,
+    /// hoparlöre geçilince ya da görüşme bitince bırakılır.
+    private var proximityLock: PowerManager.WakeLock? = null
+
+    private fun setProximity(on: Boolean) {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (on) {
+            if (proximityLock?.isHeld == true) return
+            if (!pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) return
+            @Suppress("DEPRECATION")
+            proximityLock = pm.newWakeLock(
+                PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "hophop:proximity")
+                .also { it.setReferenceCounted(false); it.acquire(60 * 60 * 1000L) }
+        } else {
+            proximityLock?.let { if (it.isHeld) it.release() }
+            proximityLock = null
+        }
+    }
+
+    override fun onDestroy() {
+        setProximity(false) // görüşme yarıda kalsa bile kilit sızmasın
+        super.onDestroy()
     }
 
     private fun currentVersionCode(): Long {

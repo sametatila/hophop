@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/call_manager.dart';
 import '../services/crypto_service.dart';
+import '../services/update_service.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
 
@@ -170,7 +171,13 @@ class _CallScreenState extends State<CallScreen>
     // Kulaklık/Bluetooth takılıysa o öncelikli kalır (force verilmiyor) —
     // kulaklıkla konuşurken sesin hoparlöre kaçmaması için istenen davranış.
     AudioManager.instance.setSpeakerOutputPreferred(_speakerOn);
+    _applyProximity();
   }
+
+  /// Ahizeye alındıysa (hoparlör kapalı) yakınlık sensörü devrede: telefon
+  /// kulağa götürülünce ekran kapanır. Görüntülüde/hoparlörde kapalı —
+  /// yoksa ekran karşındakini izlerken sönerdi.
+  void _applyProximity() => UpdateService.setProximity(!_speakerOn);
 
   /// Ağ koptuğunda: ekranı açık tut, "Yeniden bağlanıyor…" göster ve
   /// [_recoveryWindow] boyunca odaya yeniden katılmayı dene. Kullanıcı bu
@@ -214,6 +221,7 @@ class _CallScreenState extends State<CallScreen>
   @override
   void dispose() {
     WakelockPlus.disable();
+    UpdateService.setProximity(false);
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
     _peerLostTimer?.cancel();
@@ -486,10 +494,10 @@ class _CallScreenState extends State<CallScreen>
                                 builder: (context, localFrame, _) =>
                                     CustomPaint(
                                   foregroundPainter: EffectPainter(localFrame,
-                                      clock: kAnimatedFx
-                                              .contains(localFrame?.effect)
-                                          ? _fxClock
-                                          : null),
+                                      smoother: _fx.localSmooth,
+                                      clock: localFrame == null
+                                          ? null
+                                          : _fxClock),
                                   child: VideoTrackRenderer(local),
                                 ),
                               ),
@@ -639,6 +647,7 @@ class _CallScreenState extends State<CallScreen>
                               _speakerOn ? Colors.white38 : Colors.white24,
                               () async {
                                 _speakerOn = !_speakerOn;
+                            _applyProximity();
                                 await AudioManager.instance
                                     .setSpeakerOutputPreferred(_speakerOn);
                                 setState(() {});
@@ -703,9 +712,8 @@ class _CallScreenState extends State<CallScreen>
             valueListenable: _fx.remoteFx,
             builder: (context, map, _) => CustomPaint(
               foregroundPainter: EffectPainter(map[p.identity],
-                  clock: kAnimatedFx.contains(map[p.identity]?.effect)
-                      ? _fxClock
-                      : null),
+                  smoother: _fx.remoteSmoother(p.identity),
+                  clock: map[p.identity] == null ? null : _fxClock),
               child: VideoTrackRenderer(video),
             ),
           )

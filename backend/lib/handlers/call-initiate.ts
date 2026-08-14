@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomBytes } from 'crypto';
 import { db } from '../firebase.js';
 import { requireAuth } from '../auth.js';
-import { areFriends, pairId, toPublicProfile } from '../users.js';
+import { areFriends, pairId, toPublicProfile, IDENTITY_FIELDS } from '../users.js';
 import { pushToUser } from '../fcm.js';
 import { roomToken, livekitUrl } from '../livekit.js';
 import { requireMethod, badRequest, str } from '../http.js';
@@ -22,10 +22,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!calleeId) return badRequest(res, 'calleeId required');
 
   // Gecikme: arkadaşlık denetimi ve profil okumaları paralel yürür.
-  const [friends, meSnap, calleeSnap] = await Promise.all([
+  // Belge maskesi: yalnızca kimlik alanları çekilir. Fotoğraf (~40 KB)
+  // aramanın en gecikmeye duyarlı anında boşuna taşınmasın; iki belge de
+  // tek turda getirilir.
+  const [friends, [meSnap, calleeSnap]] = await Promise.all([
     areFriends(userId, calleeId),
-    db().collection('users').doc(userId).get(),
-    db().collection('users').doc(calleeId).get(),
+    db().getAll(
+      db().collection('users').doc(userId),
+      db().collection('users').doc(calleeId),
+      { fieldMask: [...IDENTITY_FIELDS] },
+    ),
   ]);
   if (!friends) return res.status(403).json({ error: 'not_friends' });
   if (!calleeSnap.exists) return res.status(404).json({ error: 'not_found' });

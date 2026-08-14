@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -11,8 +12,11 @@ import 'fx_frame.dart';
 ///
 /// LiveKit'in kamera karelerine Flutter'dan doğrudan erişim (video processor)
 /// henüz olgun olmadığı için pragmatik yol: yerel önizleme widget'ı bir
-/// RepaintBoundary ile sarılır, ~8 fps ile küçük bir görüntüsü alınır,
-/// NV21'e çevrilip ML Kit yüz algılamaya verilir. Efekt kapalıyken maliyet sıfır.
+/// RepaintBoundary ile sarılır, uyarlanır tempoda küçük bir görüntüsü alınır,
+/// NV21'e çevrilip ML Kit yüz algılamaya verilir. Efekt kapalıyken maliyet
+/// sıfır. Kontur kipi açıktır: 47 seçilmiş nokta + pitch/yaw/roll +
+/// gülümseme/göz açıklığı olasılıkları FxFrame'e doldurulur; seyrek kareler
+/// FxSmoother ile 60 fps'e yumuşatılır.
 class FaceTracker {
   final GlobalKey previewKey;
   final bool mirrorInput; // ön kamera önizlemesi aynalı mı
@@ -22,8 +26,9 @@ class FaceTracker {
   final _detector = FaceDetector(
     options: FaceDetectorOptions(
       performanceMode: FaceDetectorMode.fast,
-      enableLandmarks: true,
-      enableTracking: true,
+      enableContours: true,
+      enableClassification: true,
+      enableLandmarks: true, // kontur eksik dönerse yedek
     ),
   );
 
@@ -49,8 +54,9 @@ class FaceTracker {
   /// Bir turun maliyeti cihazdan cihaza çok değişiyor: toImage() GPU'dan geri
   /// okuma yapar, ML Kit ayrı bir kanal turu ister. Zayıf telefonda tur 200 ms
   /// sürerken 125 ms'de bir tetiklemek UI iş parçacığını doyuruyor ve görüntü
-  /// donuyordu. Artık bir sonraki tur, ölçülen sürenin ~2 katı sonrasına
-  /// kurulur: hızlı cihazda 8 fps, yavaş cihazda kendiliğinden 2-3 fps.
+  /// donuyordu. Bir sonraki tur, ölçülen sürenin ~2 katı sonrasına kurulur:
+  /// hızlı cihazda 8 fps, yavaş cihazda kendiliğinden 2-3 fps. Aradaki
+  /// kareleri FxSmoother doldurduğu için düşük tempo da akıcı görünür.
   void _schedule() {
     _timer = Timer(_period, () async {
       if (!_running) return;
@@ -96,14 +102,10 @@ class FaceTracker {
       );
       final faces = await _detector.processImage(input);
       if (faces.isEmpty) {
-        // Sihir efektleri yüzsüz de akar (kar, konfeti…): boş yüzlü kare
+        // Sihir efektleri yüzsüz de akar (kar, konfeti…): yüzsüz kare
         // gönderilir; yüze bağlı efektlerde overlay temizlenir.
-        onFace?.call(kMagicFx.contains(effect)
-            ? FxFrame(
-                effect: effect,
-                cx: 0.5, cy: 0.45, w: 0, h: 0, rz: 0, mouth: 0,
-                lx: 0, ly: 0, rx: 0, ry: 0, nx: 0, ny: 0)
-            : null);
+        onFace?.call(
+            kMagicFx.contains(effect) ? FxFrame.faceless(effect) : null);
         return;
       }
       onFace?.call(_toFrame(faces.first, width.toDouble(), height.toDouble()));
@@ -120,9 +122,10 @@ class FaceTracker {
     final render = ctx?.findRenderObject();
     if (render is! RenderRepaintBoundary || render.size.isEmpty) return null;
 
-    // Hedef genişlik ~160 px — ML Kit'in yüz bulması için fazlasıyla yeter,
-    // dönüştürülecek piksel sayısını 192'ye göre üçte bir azaltır.
-    final ratio = 160 / render.size.width;
+    // Hedef genişlik ~224 px — kontur noktalarının hassasiyeti yakalama
+    // çözünürlüğüyle sınırlı; 160 px kutu için yeterdi ama dudak/göz
+    // konturları 224'te belirgin biçimde oturuyor.
+    final ratio = 224 / render.size.width;
     final image = await render.toImage(pixelRatio: ratio.clamp(0.05, 1.0));
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -145,7 +148,8 @@ class FaceTracker {
   /// içeriğini değil.)
   static Uint8List _rgbaToNv21(Uint8List rgba, int stride, int w, int h) {
     final ySize = w * h;
-    final out = Uint8List(ySize + ySize ~/ 2)..fillRange(ySize, ySize + ySize ~/ 2, 128);
+    final out = Uint8List(ySize + ySize ~/ 2)
+      ..fillRange(ySize, ySize + ySize ~/ 2, 128);
     for (var y = 0; y < h; y++) {
       var i = y * stride * 4;
       var o = y * w;
@@ -159,40 +163,150 @@ class FaceTracker {
     return out;
   }
 
-  /// ML Kit yüzünü, yayınlanan (aynasız) kareye normalize edilmiş FxFrame'e çevirir.
+  /// ML Kit yüzünü, yayınlanan (aynasız) kareye normalize edilmiş FxFrame'e
+  /// çevirir. Sol/sağ ayrımı ML Kit'in etiketine değil görüntüdeki konuma
+  /// (x) göre yapılır — aynalı yakalamada etiketler tersine döner, konum
+  /// dönmez.
   FxFrame _toFrame(Face face, double w, double h) {
-    double nx(double x) => (x / w).clamp(0.0, 1.0);
-    double ny(double y) => (y / h).clamp(0.0, 1.0);
-
-    final box = face.boundingBox;
-    final left = face.landmarks[FaceLandmarkType.leftEye]?.position;
-    final right = face.landmarks[FaceLandmarkType.rightEye]?.position;
-    final nose = face.landmarks[FaceLandmarkType.noseBase]?.position;
-    final mouthBottom = face.landmarks[FaceLandmarkType.bottomMouth]?.position;
-
-    // Ağız açıklığı: alt dudak ile burun arası mesafenin yüz yüksekliğine oranı.
-    // Kapalı ağızda ~0.28, tam açıkta ~0.45 civarı ölçülür → 0..1'e eşle.
-    var mouth = 0.0;
-    if (nose != null && mouthBottom != null && box.height > 0) {
-      final d = (mouthBottom.y - nose.y) / box.height;
-      mouth = ((d - 0.30) / 0.15).clamp(0.0, 1.0);
+    Offset np(math.Point<int> p) => Offset(
+        (p.x / w).clamp(0.0, 1.0), (p.y / h).clamp(0.0, 1.0));
+    List<Offset>? cont(FaceContourType t) {
+      final ps = face.contours[t]?.points;
+      if (ps == null || ps.isEmpty) return null;
+      return [for (final p in ps) np(p)];
     }
 
-    final frame = FxFrame(
-      effect: effect,
-      cx: nx(box.center.dx),
-      cy: ny(box.center.dy),
-      w: (box.width / w).clamp(0.0, 1.0),
-      h: (box.height / h).clamp(0.0, 1.0),
-      rz: -(face.headEulerAngleZ ?? 0) * 3.14159 / 180,
-      mouth: mouth,
-      lx: left != null ? nx(left.x.toDouble()) : 0,
-      ly: left != null ? ny(left.y.toDouble()) : 0,
-      rx: right != null ? nx(right.x.toDouble()) : 0,
-      ry: right != null ? ny(right.y.toDouble()) : 0,
-      nx: nose != null ? nx(nose.x.toDouble()) : 0,
-      ny: nose != null ? ny(nose.y.toDouble()) : 0,
-    );
+    final box = face.boundingBox;
+    final cx = (box.center.dx / w).clamp(0.0, 1.0);
+    final cy = (box.center.dy / h).clamp(0.0, 1.0);
+    final bw = (box.width / w).clamp(0.0, 1.0);
+    final bh = (box.height / h).clamp(0.0, 1.0);
+    const d2r = math.pi / 180;
+    final pitch = (face.headEulerAngleX ?? 0) * d2r;
+    final yaw = -(face.headEulerAngleY ?? 0) * d2r;
+    final roll = -(face.headEulerAngleZ ?? 0) * d2r;
+
+    final oval = cont(FaceContourType.face);
+    final eyeA = cont(FaceContourType.leftEye);
+    final eyeB = cont(FaceContourType.rightEye);
+    final browA = cont(FaceContourType.leftEyebrowTop);
+    final browB = cont(FaceContourType.rightEyebrowTop);
+    final lipTT = cont(FaceContourType.upperLipTop);
+    final lipTB = cont(FaceContourType.upperLipBottom);
+    final lipBT = cont(FaceContourType.lowerLipTop);
+    final lipBB = cont(FaceContourType.lowerLipBottom);
+    final noseB = cont(FaceContourType.noseBridge);
+    final noseBot = cont(FaceContourType.noseBottom);
+    final cheekA = cont(FaceContourType.leftCheek);
+    final cheekB = cont(FaceContourType.rightCheek);
+
+    FxFrame frame;
+    if (oval == null ||
+        eyeA == null || eyeB == null ||
+        browA == null || browB == null ||
+        lipTT == null || lipTB == null ||
+        lipBT == null || lipBB == null) {
+      // Kontur alınamadı: kutu + eski usul ağız kestirimi ile sentezle.
+      final nose = face.landmarks[FaceLandmarkType.noseBase]?.position;
+      final mouthB = face.landmarks[FaceLandmarkType.bottomMouth]?.position;
+      var mouth = 0.0;
+      if (nose != null && mouthB != null && box.height > 0) {
+        final d = (mouthB.y - nose.y) / box.height;
+        mouth = ((d - 0.30) / 0.15).clamp(0.0, 1.0);
+      }
+      frame = FxFrame.fromBox(
+          effect: effect, cx: cx, cy: cy, w: bw, h: bh,
+          roll: roll, mouth: mouth,
+          smile: face.smilingProbability ?? 0);
+    } else {
+      final pts = Float32List(P.count * 2);
+      void set(int i, Offset p) {
+        pts[i * 2] = p.dx;
+        pts[i * 2 + 1] = p.dy;
+      }
+
+      // Oval: 36 nokta tepe ortasından saat yönünde gelir → 18'e seyrelt.
+      for (var i = 0; i < P.ovalN; i++) {
+        set(P.oval + i, oval[(i * oval.length ~/ P.ovalN) % oval.length]);
+      }
+
+      // Görüntü-soluna göre ata (etikete güvenme).
+      Offset centroid(List<Offset> l) =>
+          l.reduce((a, b) => a + b) / l.length.toDouble();
+      final aLeft = centroid(eyeA).dx <= centroid(eyeB).dx;
+      final eyeL = aLeft ? eyeA : eyeB, eyeR = aLeft ? eyeB : eyeA;
+      final bLeft = centroid(browA).dx <= centroid(browB).dx;
+      final browL = bLeft ? browA : browB, browR = bLeft ? browB : browA;
+
+      Offset minX(List<Offset> l) => l.reduce((a, b) => a.dx < b.dx ? a : b);
+      Offset maxX(List<Offset> l) => l.reduce((a, b) => a.dx > b.dx ? a : b);
+      Offset minY(List<Offset> l) => l.reduce((a, b) => a.dy < b.dy ? a : b);
+      Offset maxY(List<Offset> l) => l.reduce((a, b) => a.dy > b.dy ? a : b);
+      Offset mid(List<Offset> l) => l[l.length ~/ 2];
+
+      // Gözler: (dış köşe, üst, iç köşe, alt).
+      set(P.eyeL, minX(eyeL));
+      set(P.eyeL + 1, minY(eyeL));
+      set(P.eyeL + 2, maxX(eyeL));
+      set(P.eyeL + 3, maxY(eyeL));
+      set(P.eyeR, maxX(eyeR));
+      set(P.eyeR + 1, minY(eyeR));
+      set(P.eyeR + 2, minX(eyeR));
+      set(P.eyeR + 3, maxY(eyeR));
+
+      // Kaşlar: (dış uç, orta, iç uç).
+      set(P.browL, minX(browL));
+      set(P.browL + 1, mid(browL));
+      set(P.browL + 2, maxX(browL));
+      set(P.browR, maxX(browR));
+      set(P.browR + 1, mid(browR));
+      set(P.browR + 2, minX(browR));
+
+      // Dudaklar: köşeler + orta noktalar.
+      set(P.lipT, minX(lipTT));
+      set(P.lipT + 1, mid(lipTT));
+      set(P.lipT + 2, maxX(lipTT));
+      set(P.lipB, minX(lipBB));
+      set(P.lipB + 1, mid(lipBB));
+      set(P.lipB + 2, maxX(lipBB));
+      set(P.lipInT, mid(lipTB));
+      set(P.lipInB, mid(lipBT));
+
+      // Burun.
+      final bridge = noseB ?? [Offset(cx, cy - bh * 0.08), Offset(cx, cy + bh * 0.09)];
+      set(P.noseTop, minY(bridge));
+      set(P.noseTip, maxY(bridge));
+      final nb = noseBot ??
+          [Offset(cx - bw * 0.07, cy + bh * 0.12), Offset(cx, cy + bh * 0.13), Offset(cx + bw * 0.07, cy + bh * 0.12)];
+      set(P.noseBotL, minX(nb));
+      set(P.noseBotC, mid(nb));
+      set(P.noseBotR, maxX(nb));
+
+      // Yanaklar.
+      final ca = cheekA?.first ?? Offset(cx - bw * 0.26, cy + bh * 0.10);
+      final cb = cheekB?.first ?? Offset(cx + bw * 0.26, cy + bh * 0.10);
+      set(P.cheekL, ca.dx <= cb.dx ? ca : cb);
+      set(P.cheekR, ca.dx <= cb.dx ? cb : ca);
+
+      // Ağız açıklığı: iç dudaklar arası boşluğun yüz yüksekliğine oranı.
+      final gap = (pts[P.lipInB * 2 + 1] - pts[P.lipInT * 2 + 1]) / (bh == 0 ? 1 : bh);
+      final mouth = ((gap - 0.015) / 0.09).clamp(0.0, 1.0);
+
+      // Göz olasılıkları: aynalı yakalamada ML Kit'in "sol"u görüntü-sağıdır.
+      final probA = face.leftEyeOpenProbability ?? 1.0;
+      final probB = face.rightEyeOpenProbability ?? 1.0;
+
+      frame = FxFrame(
+        effect: effect,
+        hasFace: true,
+        cx: cx, cy: cy, w: bw, h: bh,
+        pitch: pitch, yaw: yaw, roll: roll,
+        mouth: mouth,
+        smile: face.smilingProbability ?? 0,
+        eyeOpenL: probB, eyeOpenR: probA,
+        pts: pts,
+      );
+    }
     // Yakalama aynalı önizlemeden yapıldıysa yayın koordinatlarına çevir.
     return mirrorInput ? frame.mirrored() : frame;
   }

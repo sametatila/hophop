@@ -5,6 +5,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import login from '../lib/handlers/login.js';
 import me from '../lib/handlers/me.js';
 import users from '../lib/handlers/users.js';
+import usersPhoto from '../lib/handlers/users-photo.js';
 import friendsList from '../lib/handlers/friends-list.js';
 import friendsRequest from '../lib/handlers/friends-request.js';
 import friendsRespond from '../lib/handlers/friends-respond.js';
@@ -30,6 +31,7 @@ const routes: Record<string, Handler> = {
   'login': login,
   'me': me,
   'users': users,
+  'users/photo': usersPhoto,
   'friends': friendsList,
   'friends/request': friendsRequest,
   'friends/respond': friendsRespond,

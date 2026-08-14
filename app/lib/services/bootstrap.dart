@@ -19,6 +19,8 @@ Future<void> postLoginSetup() async {
   RingListener.start(); // gerçek-zamanlı yedek zil yolu (FCM'den bağımsız)
   CallManager.checkPendingRing(); // soğuk açılışta bekleyen arama varsa çaldır
   try {
-    await ForegroundService.start();
+    // Yalnızca gerekiyorsa (agresif marka ya da kullanıcı açtıysa) — stok
+    // Android'de kalıcı bildirim çıkmaz.
+    await ForegroundService.startIfEnabled();
   } catch (_) {}
 }

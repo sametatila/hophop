@@ -17,6 +17,10 @@ class ApiClient {
 
   void setToken(String? token) => _token = token;
 
+  /// PhotoCache gibi doğrudan istek atan yerler için (JWT'li).
+  Map<String, String> get authHeaders =>
+      {if (_token != null) 'Authorization': 'Bearer $_token'};
+
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (_token != null) 'Authorization': 'Bearer $_token',

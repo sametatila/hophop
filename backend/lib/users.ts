@@ -6,7 +6,7 @@ export interface PublicProfile {
   id: string;
   firstName: string;
   lastName: string;
-  photoBase64: string | null;
+  photoVersion: number | null;
 }
 
 export interface FriendProfile extends PublicProfile {
@@ -14,13 +14,34 @@ export interface FriendProfile extends PublicProfile {
   publicKey: string | null;
 }
 
-/** Directory view: no birth date, no public key. */
+/** Ad ve açık anahtar için gereken alanlar — profil fotoğrafı HARİÇ.
+ * Arama kurulumu gibi gecikmeye duyarlı yollarda belge maskesi olarak
+ * kullanılır: fotoğraf ~40 KB ve o yollarda hiç gerekmiyor. */
+export const IDENTITY_FIELDS = [
+  'encFirstName',
+  'encLastName',
+  'encBirthDate',
+  'publicKey',
+] as const;
+
+/** Fotoğrafın sürümü: /api/users/photo adresinin önbellek anahtarı.
+ * Eski kayıtlarda alan yok ama fotoğraf olabilir — o hâlde 1 döner. */
+function photoVersionOf(doc: DocumentSnapshot): number | null {
+  const v = doc.get('photoVersion');
+  if (typeof v === 'number') return v;
+  return doc.get('photoBase64') ? 1 : null;
+}
+
+/** Directory view: no birth date, no public key.
+ * Fotoğrafın kendisi DEĞİL, sürümü döner: bayt akışı ayrı uçtan, sonsuza
+ * kadar önbelleklenebilir biçimde servis edilir (listeler her tazelemede
+ * herkesin fotoğrafını yeniden indirmesin). */
 export function toPublicProfile(doc: DocumentSnapshot): PublicProfile {
   return {
     id: doc.id,
     firstName: decryptField(doc.get('encFirstName')),
     lastName: decryptField(doc.get('encLastName')),
-    photoBase64: doc.get('photoBase64') ?? null,
+    photoVersion: photoVersionOf(doc),
   };
 }
 

@@ -184,6 +184,16 @@ class UpdateService {
   /// Sistem yükleyicisini açar; onayı kullanıcı verir.
   static Future<void> install(File apk) =>
       _channel.invokeMethod('install', {'path': apk.path});
+
+  /// Ahize kipinde yakınlık sensörünü açar: telefon kulağa götürülünce ekran
+  /// kapanır (yanak dokunuşları düğmelere basmasın). Hoparlör/görüntülü kipte
+  /// kapatılır. Aynı platform kanalı kullanılır — ek eklenti yok.
+  static Future<void> setProximity(bool on) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('proximity', {'on': on});
+    } catch (_) {}
+  }
 }
 
 /// İndirme iptali için minik bayrak (yeni bağımlılık getirmemek için elde yazıldı).

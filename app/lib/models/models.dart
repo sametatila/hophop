@@ -3,7 +3,9 @@ class UserProfile {
   final String id;
   final String firstName;
   final String lastName;
-  final String? photoBase64;
+  /// Fotoğrafın sürümü — bayt hâli PhotoCache üzerinden ayrı uçtan gelir.
+  /// null ise fotoğraf yok (baş harfler çizilir).
+  final int? photoVersion;
   final String? birthDate; // yalnızca arkadaşlar + kendisi için dolu (YYYY-AA-GG)
   final String? publicKey; // E2EE — yalnızca arkadaşlar için dolu
   final String friendStatus; // none | requested | incoming | friend | self
@@ -12,7 +14,7 @@ class UserProfile {
     required this.id,
     required this.firstName,
     required this.lastName,
-    this.photoBase64,
+    this.photoVersion,
     this.birthDate,
     this.publicKey,
     this.friendStatus = 'none',
@@ -25,7 +27,7 @@ class UserProfile {
       id: json['id'] as String,
       firstName: json['firstName'] as String,
       lastName: json['lastName'] as String,
-      photoBase64: json['photoBase64'] as String?,
+      photoVersion: (json['photoVersion'] as num?)?.toInt(),
       birthDate: json['birthDate'] as String?,
       publicKey: json['publicKey'] as String?,
       friendStatus: friendStatus ?? (json['friendStatus'] as String? ?? 'none'),
@@ -36,7 +38,7 @@ class UserProfile {
         'id': id,
         'firstName': firstName,
         'lastName': lastName,
-        'photoBase64': photoBase64,
+        'photoVersion': photoVersion,
         'birthDate': birthDate,
         'publicKey': publicKey,
         'friendStatus': friendStatus,

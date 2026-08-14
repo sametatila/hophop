@@ -31,6 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (photo) {
     if (photo.length > 140_000) return badRequest(res, 'photo too large');
     update.photoBase64 = photo;
+    // Sürüm = fotoğrafın önbellek anahtarı. Değişince /api/users/photo
+    // adresi de değişir, eski kopya kendiliğinden geçersiz olur.
+    update.photoVersion = Date.now();
   }
   const publicKey = str(req.body?.publicKey);
   if (publicKey) update.publicKey = publicKey;

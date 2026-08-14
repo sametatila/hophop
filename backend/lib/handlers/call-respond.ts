@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { db } from '../firebase.js';
 import { requireAuth } from '../auth.js';
-import { areFriends, pairId, toPublicProfile } from '../users.js';
+import { areFriends, pairId, toPublicProfile, IDENTITY_FIELDS } from '../users.js';
 import { pushToUser } from '../fcm.js';
 import { roomToken, livekitUrl } from '../livekit.js';
 import { requireMethod, badRequest, str } from '../http.js';
@@ -50,10 +50,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!roomName || !callerId) return badRequest(res, 'roomName and callerId required');
 
   // Gecikme: arkadaşlık denetimi ve profil okumaları paralel yürür.
-  const [friends, meSnap, callerSnap, ringSnap] = await Promise.all([
+  // Belge maskesi: fotoğraf (~40 KB) bu yolda gerekmiyor, yalnızca ad ve
+  // açık anahtar okunur. İki kullanıcı belgesi tek turda gelir.
+  const [friends, [meSnap, callerSnap], ringSnap] = await Promise.all([
     areFriends(userId, callerId),
-    db().collection('users').doc(userId).get(),
-    db().collection('users').doc(callerId).get(),
+    db().getAll(
+      db().collection('users').doc(userId),
+      db().collection('users').doc(callerId),
+      { fieldMask: [...IDENTITY_FIELDS] },
+    ),
     db().collection('rings').doc(userId).get(),
   ]);
   if (!friends) return res.status(403).json({ error: 'not_friends' });

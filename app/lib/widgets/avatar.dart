@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../services/photo_cache.dart';
 import '../theme/hop_theme.dart';
 
 class Avatar extends StatelessWidget {
@@ -24,19 +24,20 @@ class Avatar extends StatelessWidget {
     this.heroTag,
   });
 
-  static Uint8List? photoBytes(UserProfile user) {
-    final photo = user.photoBase64;
-    if (photo == null || photo.isEmpty) return null;
-    try {
-      return base64Decode(photo);
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final bytes = photoBytes(user);
+    // Bellekte varsa anında çizilir; yoksa PhotoCache diskten/ağdan getirir.
+    final cached = PhotoCache.peek(user.id, user.photoVersion);
+    if (cached == null && user.photoVersion != null) {
+      return FutureBuilder<Uint8List?>(
+        future: PhotoCache.load(user.id, user.photoVersion),
+        builder: (context, snap) => _build(context, snap.data),
+      );
+    }
+    return _build(context, cached);
+  }
+
+  Widget _build(BuildContext context, Uint8List? bytes) {
     Widget avatar = bytes != null
         ? CircleAvatar(radius: radius, backgroundImage: MemoryImage(bytes))
         : CircleAvatar(

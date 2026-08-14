@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import '../models/models.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/photo_cache.dart';
 import '../widgets/avatar.dart';
 
 /// Profilim: fotoğraf çek/seç (kırpılıp ~20 KB'a sıkıştırılır).
@@ -29,26 +29,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxHeight: 512,
       );
       if (picked == null) return;
+      // 512 px / kalite 80: avatarda da tam ekran görüntüleyicide de net
+      // durur (~35-45 KB). Fotoğraf artık listelerde taşınmadığı, ayrı uçtan
+      // bir kez inip önbelleğe yazıldığı için bu boyut bedava sayılır.
       final compressed = await FlutterImageCompress.compressWithFile(
         picked.path,
-        minWidth: 256,
-        minHeight: 256,
-        quality: 70,
+        minWidth: 512,
+        minHeight: 512,
+        quality: 80,
         format: CompressFormat.jpeg,
       );
       if (compressed == null) return;
       final b64 = base64Encode(compressed);
       await api.updateMe(photoBase64: b64);
-      final me = auth.me!;
-      await auth.updateCachedMe(UserProfile(
-        id: me.id,
-        firstName: me.firstName,
-        lastName: me.lastName,
-        photoBase64: b64,
-        birthDate: me.birthDate,
-        publicKey: me.publicKey,
-        friendStatus: 'self',
-      ));
+      // Sunucudaki sürüm damgasını taze profille al ve önbelleği doğrudan
+      // besle — kendi fotoğrafını yükledikten sonra geri indirmek saçma olur.
+      final fresh = await api.me();
+      if (fresh.photoVersion != null) {
+        await PhotoCache.prime(fresh.id, fresh.photoVersion!, compressed);
+      }
+      await auth.updateCachedMe(fresh);
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) {

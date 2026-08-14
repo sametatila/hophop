@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
+import '../services/foreground_service.dart';
 import '../services/permission_service.dart';
 import '../services/update_service.dart';
 import '../theme/hop_theme.dart';
@@ -24,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _aggressiveOem = false;
   ({int code, String name})? _version;
   bool _checkingUpdate = false;
+  bool _bgService = false;
 
   static final _labels = {
     Permission.notification: (
@@ -46,6 +48,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _refresh();
     UpdateService.installedVersion().then((v) {
       if (mounted) setState(() => _version = v);
+    });
+    ForegroundService.isEnabled().then((v) {
+      if (mounted) setState(() => _bgService = v);
     });
   }
 
@@ -171,6 +176,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                       child: const Text('Denetle'),
                     ),
+            ),
+          ),
+          Card(
+            child: SwitchListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              secondary: const Icon(Icons.notifications_paused, size: 30),
+              title: const Text('Arka planda hazır bekle'),
+              subtitle: const Text(
+                  'Kalıcı bir bildirim gösterir. Çoğu telefonda gerekmez; '
+                  'aramalar geç geliyorsa aç.'),
+              value: _bgService,
+              onChanged: (v) async {
+                setState(() => _bgService = v);
+                await ForegroundService.setEnabled(v);
+              },
             ),
           ),
           const SizedBox(height: 16),
