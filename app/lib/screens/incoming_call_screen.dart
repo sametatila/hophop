@@ -60,6 +60,20 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     }
   }
 
+  /// "Ali, Mehmet ve Ayşe" — soyadlar atılır, uzun liste kısaltılır.
+  static String _participantLabel(List<String> names) {
+    final firsts = names
+        .map((n) => n.trim().split(' ').first)
+        .where((n) => n.isNotEmpty)
+        .toList();
+    if (firsts.isEmpty) return '';
+    if (firsts.length == 1) return firsts.first;
+    if (firsts.length <= 3) {
+      return '${firsts.sublist(0, firsts.length - 1).join(', ')} ve ${firsts.last}';
+    }
+    return '${firsts.take(2).join(', ')} ve ${firsts.length - 2} kişi daha';
+  }
+
   @override
   Widget build(BuildContext context) {
     final call = widget.call;
@@ -125,6 +139,36 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                     ),
                   ],
                 ),
+                // Grup davetinde odada kimlerin olduğu — "kimin yanına
+                // giriyorum?" sorusu cevapsız kalmasın.
+                if (!_connecting && call.group && call.participants.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.groups,
+                              color: Colors.white70, size: 18),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Görüşmede: ${_participantLabel(call.participants)}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 15),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (_connecting) ...[
                   const SizedBox(height: 24),
                   const CircularProgressIndicator(color: Colors.white54),

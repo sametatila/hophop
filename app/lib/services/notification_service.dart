@@ -111,7 +111,14 @@ class NotificationService {
     await _plugin.show(
       id: callNotificationId,
       title: call.video ? '📹 ${call.callerName}' : '📞 ${call.callerName}',
-      body: call.video ? 'Görüntülü arıyor…' : 'Sesli arıyor…',
+      // Grup davetinde odada kimler olduğu bildirimde de yazar; kullanıcı
+      // ekranı açmadan katılıp katılmayacağına karar verebilsin.
+      body: call.group && call.participants.isNotEmpty
+          ? 'Grup araması — görüşmede: '
+              '${call.participants.map((n) => n.split(' ').first).join(', ')}'
+          : call.video
+              ? 'Görüntülü arıyor…'
+              : 'Sesli arıyor…',
       notificationDetails: NotificationDetails(android: android),
       payload: jsonEncode(call.toData()),
     );

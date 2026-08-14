@@ -81,6 +81,10 @@ class IncomingCall {
   final String roomKeyEnc; // arayanın bize özel sarılmış oda anahtarı
   final bool group; // süren bir aramaya davet mi
 
+  /// Grup davetinde odada hâlihazırda bulunanların adları. Davete cevap
+  /// verirken "kimin yanına giriyorum?" sorusunun karşılığı.
+  final List<String> participants;
+
   IncomingCall({
     required this.roomName,
     required this.callerId,
@@ -89,6 +93,7 @@ class IncomingCall {
     required this.callerPublicKey,
     this.roomKeyEnc = '',
     this.group = false,
+    this.participants = const [],
   });
 
   factory IncomingCall.fromData(Map<String, dynamic> data) => IncomingCall(
@@ -99,6 +104,11 @@ class IncomingCall {
         callerPublicKey: data['callerPublicKey'] as String? ?? '',
         roomKeyEnc: data['roomKeyEnc'] as String? ?? '',
         group: data['group'] == '1',
+        participants: ((data['participants'] as String?) ?? '')
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList(),
       );
 
   Map<String, String> toData() => {
@@ -109,6 +119,7 @@ class IncomingCall {
         'callerPublicKey': callerPublicKey,
         'roomKeyEnc': roomKeyEnc,
         'group': group ? '1' : '0',
+        'participants': participants.join(','),
       };
 }
 

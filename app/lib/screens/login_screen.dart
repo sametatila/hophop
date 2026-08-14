@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       // Marka: uygulamanın kendi ikonu (telefonun ana
                       // ekranındaki simgeyle birebir aynı tavşan)
-                      const HopLogo(size: 112)
+                      const HopLogo(size: 132)
                           .animate(
                               onPlay: (c) => c.repeat(reverse: true))
                           .scale(

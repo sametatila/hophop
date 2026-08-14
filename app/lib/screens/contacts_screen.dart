@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/models.dart';
+import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../theme/hop_theme.dart';
+import 'tab_refresh.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
 
@@ -14,7 +16,13 @@ class ContactsScreen extends StatefulWidget {
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
 
-class _ContactsScreenState extends State<ContactsScreen> {
+class _ContactsScreenState extends State<ContactsScreen> with TabRefresh {
+  @override
+  int get tabIndex => 1;
+
+  @override
+  Future<void> reload() => _load();
+
   List<UserProfile> _users = [];
   bool _loading = true;
   final _busyIds = <String>{};
@@ -26,6 +34,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _load() async {
+    markLoaded();
     try {
       final users = await api.directory();
       if (mounted) {
@@ -43,7 +52,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     setState(() => _busyIds.add(user.id));
     try {
       await api.sendFriendRequest(user.id);
-      await _load();
+      ActivityStore.socialChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${user.firstName} kişisine istek gönderildi')),

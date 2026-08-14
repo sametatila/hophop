@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/call_manager.dart';
 import '../services/update_service.dart';
 import '../theme/hop_theme.dart';
+import 'tab_refresh.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
 import '../widgets/hop_logo.dart';
@@ -22,7 +23,13 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TabRefresh {
+  @override
+  int get tabIndex => 0;
+
+  @override
+  Future<void> reload() => _load();
+
   List<UserProfile> _friends = [];
   bool _loading = true;
   late final Listenable _activity;
@@ -90,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+    markLoaded();
     ActivityStore.refresh(); // okunmamış rozetleri tazele
   }
 
@@ -139,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ],
                               ),
                             ),
-                            const HopLogo(size: 46),
+                            const HopLogo(size: 60),
                           ],
                         ).animate().fadeIn(duration: Hop.normal),
                       ),

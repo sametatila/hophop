@@ -67,12 +67,16 @@ class FcmService {
         }
       case 'friend_request':
         ActivityStore.pendingRequests.value++;
+        // Listeler anında tazelensin: İstekler sekmesi açıksa istek hemen düşer.
+        ActivityStore.socialChanged();
         await NotificationService.showGeneral(
           2001,
           'Arkadaşlık isteği',
           '${message.data['fromName']} seninle arkadaş olmak istiyor',
         );
       case 'request_accepted':
+        // Karşı taraf kabul etti → yeni arkadaş "Arkadaşlar"da hemen görünsün.
+        ActivityStore.socialChanged();
         await NotificationService.showGeneral(
           2002,
           'İstek kabul edildi',

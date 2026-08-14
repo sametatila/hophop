@@ -1,16 +1,30 @@
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 
-/** Odadaki mevcut katılımcı sayısı (oda yoksa 0). Grup sınırı denetimi için. */
-export async function participantCount(roomName: string): Promise<number> {
-  const svc = new RoomServiceClient(
+function roomService(): RoomServiceClient {
+  return new RoomServiceClient(
     livekitUrl().replace('wss://', 'https://'),
     process.env.LIVEKIT_API_KEY,
     process.env.LIVEKIT_API_SECRET,
   );
+}
+
+/** Odadaki mevcut katılımcı sayısı (oda yoksa 0). Grup sınırı denetimi için. */
+export async function participantCount(roomName: string): Promise<number> {
   try {
-    return (await svc.listParticipants(roomName)).length;
+    return (await roomService().listParticipants(roomName)).length;
   } catch {
     return 0; // oda henüz oluşmamış
+  }
+}
+
+/** Odadaki katılımcıların adları — davet edilene "kimler var" diyebilmek için.
+ * Ad, token üretilirken yazılan görünen addır; yoksa kimlik kullanılır. */
+export async function participantNames(roomName: string): Promise<string[]> {
+  try {
+    const list = await roomService().listParticipants(roomName);
+    return list.map((p) => p.name || p.identity).filter(Boolean);
+  } catch {
+    return [];
   }
 }
 

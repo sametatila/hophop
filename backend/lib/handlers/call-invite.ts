@@ -3,7 +3,7 @@ import { db } from '../firebase.js';
 import { requireAuth } from '../auth.js';
 import { areFriends, toPublicProfile } from '../users.js';
 import { pushToUser } from '../fcm.js';
-import { participantCount } from '../livekit.js';
+import { participantCount, participantNames } from '../livekit.js';
 import { requireMethod, badRequest, str } from '../http.js';
 
 const MAX_PARTICIPANTS = 6;
@@ -26,7 +26,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'not_friends' });
   }
 
-  const count = await participantCount(roomName);
+  const names = await participantNames(roomName);
+  const count = names.length;
   if (count >= MAX_PARTICIPANTS) {
     return res.status(409).json({ error: 'room_full', max: MAX_PARTICIPANTS });
   }
@@ -43,6 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     callerPublicKey: meSnap.get('publicKey') ?? '',
     roomKeyEnc,
     group: '1',
+    // Davet edilen "kim var?" diye merak etmesin: odadakilerin adları.
+    // FCM data değerleri düz metin olmalı, bu yüzden virgülle birleştirilir.
+    participants: names.join(','),
   };
 
   // Davet de üçlü teslimattan yararlanır: push kaybolsa bile gerçek-zamanlı

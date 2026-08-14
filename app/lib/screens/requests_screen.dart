@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../services/activity_store.dart';
 import '../services/api_client.dart';
 import '../theme/hop_theme.dart';
+import 'tab_refresh.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
 
@@ -15,7 +16,13 @@ class RequestsScreen extends StatefulWidget {
   State<RequestsScreen> createState() => _RequestsScreenState();
 }
 
-class _RequestsScreenState extends State<RequestsScreen> {
+class _RequestsScreenState extends State<RequestsScreen> with TabRefresh {
+  @override
+  int get tabIndex => 2;
+
+  @override
+  Future<void> reload() => _load();
+
   List<FriendRequestEntry> _incoming = [];
   List<FriendRequestEntry> _outgoing = [];
   bool _loading = true;
@@ -27,6 +34,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Future<void> _load() async {
+    markLoaded();
     try {
       final r = await api.friendRequests();
       ActivityStore.pendingRequests.value = r.incoming.length; // rozet gerçek sayıya oturur
@@ -45,7 +53,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
   Future<void> _respond(FriendRequestEntry entry, bool accept) async {
     try {
       await api.respondFriendRequest(entry.requestId, accept);
-      await _load();
+      // Sinyal: bu ekran da dahil TÜM sekmeler tazelenir (arkadaş listesi,
+      // Kişiler'deki "Arkadaş" rozeti…). Tek başına _load() yalnızca burayı
+      // güncellerdi ve kabul edilen arkadaş "Arkadaşlar"da görünmezdi.
+      ActivityStore.socialChanged();
       if (accept && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
@@ -57,7 +68,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   Future<void> _cancel(FriendRequestEntry entry) async {
     try {
       await api.cancelFriendRequest(entry.requestId);
-      await _load();
+      ActivityStore.socialChanged();
     } catch (_) {}
   }
 

@@ -53,7 +53,12 @@ class _ShellState extends State<Shell> {
               ActivityStore.unread.value.values.fold(0, (a, b) => a + b);
           return NavigationBar(
             selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
+            onDestinationSelected: (i) {
+              setState(() => _index = i);
+              // Ekranlar IndexedStack'te canlı kaldığı için görünür olduklarını
+              // ancak buradan öğrenir; bayat verilerini o an tazelerler.
+              ActivityStore.visibleTab.value = i;
+            },
             // İkonlar sekmenin İŞİNİ anlatır: ev/mektup gibi genel simgeler
             // yerine aramaya, kişi aramaya ve kişi eklemeye karşılık gelenler.
             // Seçiliyken dolu, değilken çizgi hâli (Material 3 alışkanlığı).

@@ -20,6 +20,22 @@ class ActivityStore {
   /// Bekleyen gelen arkadaşlık isteği sayısı (İstekler sekmesi rozeti).
   static final pendingRequests = ValueNotifier<int>(0);
 
+  /// Arkadaşlık grafiği değişti: istek gönderildi/iptal edildi/kabul/red, ya da
+  /// karşı taraftan bildirim geldi.
+  ///
+  /// Gezinme IndexedStack kullanıyor — dört ekran da bellekte canlı kalır ve
+  /// hiçbiri yeniden initState almaz. Bu sinyal olmadan bir sekmede yapılan
+  /// değişiklik diğerlerine YANSIMAZ (kabul ettiğin arkadaş "Arkadaşlar"da
+  /// görünmez). Değişimi yapan ekran [socialChanged] çağırır, hepsi tazeler.
+  static final socialVersion = ValueNotifier<int>(0);
+
+  static void socialChanged() => socialVersion.value++;
+
+  /// Şu an görünen sekmenin sırası (Shell yazar). Ekranlar görünür hâle
+  /// geldiklerinde bayatlamış verilerini tazelemek için dinler — böylece
+  /// karşı cihazda yapılan değişiklikler de sekmeye dönünce yakalanır.
+  static final visibleTab = ValueNotifier<int>(0);
+
   /// Şu an açık olan sohbetin arkadaş kimliği — o kişiden gelen mesajlar
   /// bildirim/rozet üretmez (WhatsApp davranışı).
   static String? activeChatId;
