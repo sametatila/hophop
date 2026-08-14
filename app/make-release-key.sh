@@ -17,12 +17,13 @@ KEYSTORE="android/hophop-release.jks"
 PROPS="android/key.properties"
 ALIAS="hophop"
 
-# keytool: PATH'te yoksa Android Studio'nun JDK'sında ara
+# keytool: PATH'te yoksa Android Studio'nun JDK'sında ara.
+# DİKKAT: set -u açık — tanımsız olabilecek değişkenler ${VAR:-} ile okunur.
 KEYTOOL="$(command -v keytool || true)"
 if [ -z "$KEYTOOL" ]; then
-  for c in "$JAVA_HOME/bin/keytool" /opt/android-studio/jbr/bin/keytool \
-           "$HOME/android-studio/jbr/bin/keytool" /usr/lib/jvm/*/bin/keytool; do
-    [ -x "$c" ] && KEYTOOL="$c" && break
+  for c in "${JAVA_HOME:-}/bin/keytool" /opt/android-studio/jbr/bin/keytool \
+           "${HOME:-}/android-studio/jbr/bin/keytool" /usr/lib/jvm/*/bin/keytool; do
+    if [ -x "$c" ]; then KEYTOOL="$c"; break; fi
   done
 fi
 [ -n "$KEYTOOL" ] || { echo "✗ keytool bulunamadı. JDK ya da Android Studio kurulu mu?"; exit 1; }
