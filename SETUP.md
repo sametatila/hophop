@@ -34,16 +34,15 @@ Değerleri bir yere (şifre yöneticisi) kaydet. `backend/.env.example` hangi de
   bölge: fra1). Üretim adresi: **https://hophop.exfe.me** (eski
   `hophop-kappa.vercel.app` da çalışır). Tüm uçlar tek fonksiyonda
   (`api/router.ts` + rewrite) — Hobby 12-fonksiyon sınırına takılmaz.
-- Uçtan uca doğrulama (39 test): `cd backend && node scripts/e2e-test.mjs`
+- Uçtan uca doğrulama: `cd backend && node scripts/e2e-test.mjs` (39 test) ve
+  `node scripts/photo-test.mjs` (16 test — profil fotoğrafı akışı)
 
 ## 3.5) Tanıtım sayfası (hophop.exfe.me)
 
 Aynı Vercel projesi hem API'yi hem tanıtım sayfasını sunar — ayrı proje gerekmez.
 Sayfa `backend/public/` içinde, tek dosya (`index.html`), derleme adımı yok.
 
-- [ ] **Alan adı bağla:** Vercel → proje → **Settings → Domains** → `hophop.exfe.me` ekle
-  → gösterdiği kaydı `exfe.me` DNS'ine gir (genelde `CNAME hophop → cname.vercel-dns.com`)
-  → sertifika birkaç dakikada otomatik çıkar. Kök alan adına dokunulmaz.
+- [x] **Alan adı bağlı** ✅ — https://hophop.exfe.me yayında (sayfa + API aynı proje).
 - [ ] **APK indirme butonu.** Buton `/hophop.apk` adresine bakar. Üç seçenek:
   1. **Herkese açık indirme:** derlenen APK'yı `backend/public/hophop.apk` olarak
      kopyala ve commit'le. ⚠️ Repo public ise APK GitHub'da da herkese açık olur;
@@ -185,7 +184,8 @@ yapılmaz, uygulama o adresten iner.
 
 - Ayda bir **LiveKit dashboard** → dakika kullanımı (ücretsiz: 5.000 katılımcı-dk/ay;
   grup aramada her katılımcı ayrı sayılır). Aşarsa: ücretli katman ya da self-host
-- Her backend değişikliğinden sonra: `node scripts/e2e-test.mjs` (39 test)
+- Her backend değişikliğinden sonra: `node scripts/e2e-test.mjs` (39 test) +
+  `node scripts/photo-test.mjs` (16 test)
 - Yeni aile üyesi = adım 4 + APK gönder
 - Yeni sürüm = adım 6.5 (tek komut); kimseye APK göndermene gerek kalmaz
 - Sorun yaşayan cihaz = uygulamada **Ayarlar → İzin durumu → Düzelt**
