@@ -27,7 +27,11 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
   int get tabIndex => 0;
 
   @override
-  Future<void> reload() => _load();
+  Future<void> reload() {
+    // Diyalog araya girilemeyecek bir an yüzünden ertelenmişse burada tutar.
+    _showUpdatePrompt();
+    return _load();
+  }
 
   List<UserProfile> _friends = [];
   bool _loading = true;
@@ -42,18 +46,37 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
       ActivityStore.lastActivity
     ]);
     _activity.addListener(_onActivity);
+    UpdateService.prompt.addListener(_showUpdatePrompt);
     _load();
     // Sessiz güncelleme denetimi: başarısız olursa hiçbir şey göstermez.
+    // Yeni bir sürüm bulunursa UpdateService duyurusunu yapar (bildirim +
+    // aşağıdaki diyalog).
     UpdateService.check();
+    // Duyuru bu ekran kurulmadan önce yapılmışsa (ör. bildirime dokunularak
+    // soğuk açılış) dinleyici artık tetiklenmez — ilk kareden sonra bir kez bak.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _showUpdatePrompt());
   }
 
   void _onActivity() {
     if (mounted) setState(() {});
   }
 
+  /// Sürüm başına bir kez: güncelleme diyaloğunu aç. Görüşme ekranı ya da
+  /// başka bir sayfa üstteyken araya girilmez; istek bekler ve sekmeye
+  /// dönüldüğünde ([reload]) yeniden denenir.
+  void _showUpdatePrompt() {
+    final update = UpdateService.prompt.value;
+    if (update == null || !mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    UpdateService.prompt.value = null;
+    showUpdateDialog(context, update);
+  }
+
   @override
   void dispose() {
     _activity.removeListener(_onActivity);
+    UpdateService.prompt.removeListener(_showUpdatePrompt);
     super.dispose();
   }
 

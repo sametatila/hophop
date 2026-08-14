@@ -1,7 +1,7 @@
 {
-  "versionCode": 1,
-  "version": "1.0.0",
-  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.0/hophop-1.0.0.apk",
-  "size": 87260442,
-  "notes": "İlk sürüm — aile içi görüntülü arama, yüz efektleri, uçtan uca şifreli"
+  "versionCode": 2,
+  "version": "1.0.1",
+  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.1/hophop-1.0.1.apk",
+  "size": 87260562,
+  "notes": "Ayarlar düzeni düzeltildi; \"Tam ekran arama\" izninin açık mı kapalı mı olduğu artık görünüyor. Yeni sürüm çıktığında bildirim ve uyarı geliyor — Ayarlar'a girip denetlemek gerekmiyor. \"Arka planda hazır bekle\" varsayılan olarak kapalı."
 }

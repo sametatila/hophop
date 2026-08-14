@@ -27,6 +27,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _checkingUpdate = false;
   bool _bgService = false;
 
+  /// Tam ekran arama izni: null = henüz okunmadı (kartta çark döner).
+  bool? _fullScreen;
+  bool _checkingFullScreen = false;
+
   static final _labels = {
     Permission.notification: (
       Icons.notifications_active,
@@ -54,16 +58,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 4),
+    ));
+  }
+
   Future<void> _checkUpdate() async {
     setState(() => _checkingUpdate = true);
     final found = await UpdateService.check(force: true);
     if (!mounted) return;
     setState(() => _checkingUpdate = false);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(found == null
-          ? 'En güncel sürümü kullanıyorsun.'
-          : 'Yeni sürüm var: ${found.version}'),
-    ));
+    _toast(found == null
+        ? 'En güncel sürümü kullanıyorsun.'
+        : 'Yeni sürüm var: ${found.version}');
+  }
+
+  /// Tam ekran arama izni. Verilmişse eklenti anında true döner (hiçbir ekran
+  /// açılmaz) — eskiden bu yüzden butona basınca hiçbir şey olmuyor gibi
+  /// görünüyordu. Artık sonuç her iki durumda da kullanıcıya yazılır ve
+  /// karttaki durum güncellenir.
+  Future<void> _fixFullScreen() async {
+    setState(() => _checkingFullScreen = true);
+    try {
+      await FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestFullScreenIntentPermission();
+    } catch (_) {/* izin ekranı açılamadı — aşağıdaki okuma yine de doğru */}
+    // Sistem ayar ekranından dönüşte gerçek durumu yerel köprüden doğrula:
+    // eklentinin cevabı "istek başlatıldı" anlamına da gelebiliyor.
+    final granted = await PermissionService.canUseFullScreenIntent();
+    if (!mounted) return;
+    setState(() {
+      _checkingFullScreen = false;
+      _fullScreen = granted;
+    });
+    _toast(granted
+        ? 'Tam ekran arama açık: telefon kilitliyken arama ekranı doğrudan açılacak.'
+        : 'Tam ekran arama kapalı kaldı. Telefon ayarları → Uygulamalar → '
+            'HopHop → Bildirimler → "Tam ekran bildirimler" seçeneğini aç.');
   }
 
   /// Basit ebeveyn kapısı: çarpım sorusu (çocuk uygulamalarında standart).
@@ -108,13 +144,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _refresh() async {
     final statuses = await PermissionService.statuses();
     final aggressive = await PermissionService.isAggressiveOem();
+    final fullScreen = await PermissionService.canUseFullScreenIntent();
     if (mounted) {
       setState(() {
         _statuses = statuses;
         _aggressiveOem = aggressive;
+        _fullScreen = fullScreen;
       });
     }
   }
+
+  /// Listedeki her kutu aynı ritimde dursun: kart + üstünde/altında 4 dp.
+  /// (Kartların kendi kenar boşluğu temada sıfırlandığı için burada verilir.)
+  Widget _row({required Widget child}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Card(child: child),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -153,10 +198,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           // Güncelleme varsa kart burada da görünsün — ana ekranı kaçıran olur.
           const UpdateCard(),
-          Card(
+          _row(
             child: ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -178,23 +223,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
             ),
           ),
-          Card(
+          _row(
             child: SwitchListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
               secondary: const Icon(Icons.notifications_paused, size: 30),
               title: const Text('Arka planda hazır bekle'),
-              subtitle: const Text(
-                  'Kalıcı bir bildirim gösterir. Çoğu telefonda gerekmez; '
-                  'aramalar geç geliyorsa aç.'),
+              // Agresif markalarda (Xiaomi/Oppo/vivo…) sistem uygulamayı
+              // durdurabildiği için açmak gerçekten işe yarar; onlara ayrı yazılır.
+              subtitle: Text(_aggressiveOem
+                  ? 'Kalıcı bir bildirim gösterir. Bu marka telefonlar '
+                      'uygulamaları durdurabildiği için açman önerilir.'
+                  : 'Kalıcı bir bildirim gösterir. Çoğu telefonda gerekmez; '
+                      'aramalar geç geliyorsa aç.'),
               value: _bgService,
               onChanged: (v) async {
                 setState(() => _bgService = v);
                 await ForegroundService.setEnabled(v);
+                _toast(v
+                    ? 'Arka planda hazır bekleme açıldı.'
+                    : 'Arka planda hazır bekleme kapatıldı.');
               },
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           const Text('İzin durumu',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -205,9 +257,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               .map((e) {
             final (icon, title, why) = _labels[e.key]!;
             final ok = e.value.isGranted;
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Card(
+            return _row(
               child: ListTile(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -226,34 +276,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: const Text('Düzelt'),
                       ),
               ),
-              ),
             );
           }),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Card(
-              child: ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                leading: const Icon(Icons.fullscreen, size: 30),
-                title: const Text('Tam ekran arama'),
-                subtitle: const Text(
-                    'Kilitliyken arama ekranı doğrudan açılsın'),
-                trailing: FilledButton.tonal(
-                  onPressed: () async {
-                    // İzin verilmemişse sistem ayar sayfasını açar.
-                    await FlutterLocalNotificationsPlugin()
-                        .resolvePlatformSpecificImplementation<
-                            AndroidFlutterLocalNotificationsPlugin>()
-                        ?.requestFullScreenIntentPermission();
-                    await _refresh();
-                  },
-                  // Tema varsayılanı tam genişlik — trailing içinde sınırlanmalı.
-                  style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                  child: const Text('Kontrol et'),
-                ),
-              ),
+          _row(
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              leading: const Icon(Icons.fullscreen, size: 30),
+              title: const Text('Tam ekran arama'),
+              // Diğer izin satırları gibi DURUMU yazar: kullanıcı butona
+              // basmadan da açık mı kapalı mı olduğunu görür.
+              subtitle: Text(_fullScreen == false
+                  ? 'Kapalı — kilitliyken yalnızca bildirim görünür'
+                  : 'Kilitliyken arama ekranı doğrudan açılır'),
+              trailing: _checkingFullScreen || _fullScreen == null
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5))
+                  : _fullScreen!
+                      ? const Icon(Icons.check_circle,
+                          color: Colors.green, size: 32)
+                      : FilledButton(
+                          onPressed: _fixFullScreen,
+                          // Tema varsayılanı tam genişlik — trailing içinde
+                          // sınırlanmalı.
+                          style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 44)),
+                          child: const Text('Düzelt'),
+                        ),
             ),
           ),
           if (_aggressiveOem) ...[
@@ -321,7 +372,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Center(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text('HopHop v1.0.0',
+              // Elle yazılmış sürüm her yayında unutuluyordu — paketten okunur.
+              child: Text('HopHop v${_version?.name ?? '—'}',
                   style: TextStyle(
                       color: Theme.of(context).colorScheme.outline,
                       fontSize: 12)),

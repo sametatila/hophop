@@ -1,29 +1,27 @@
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'permission_service.dart';
-
 /// Sessiz, minimum önemde kalıcı bildirimle süreci ayakta tutar.
 ///
 /// NE İŞE YARAR: süreç canlı kaldıkça gerçek-zamanlı zil dinleyicisi bağlı
 /// kalır ve uygulama sistem tarafından öldürülmez.
 ///
-/// NEDEN VARSAYILAN OLARAK KAPALI: yüksek öncelikli FCM mesajı, uygulama
-/// kapalıyken de cihazı uyandırıp arama bildirimini gösterebiliyor — stok
-/// Android, Pixel ve Samsung'da bu servise gerek yok, yalnızca kalıcı bir
-/// bildirim olarak göze batıyordu. Xiaomi/Oppo/Vivo gibi uygulamaları agresif
-/// biçimde durduran markalarda ise gerçekten fark yaratıyor; oralarda
-/// varsayılan açık. Kullanıcı Ayarlar'dan her iki yönde de değiştirebilir.
+/// NEDEN HER CİHAZDA VARSAYILAN KAPALI: yüksek öncelikli FCM mesajı, uygulama
+/// kapalıyken de cihazı uyandırıp arama bildirimini gösterebiliyor — yani
+/// servis olmadan da aramalar geliyor. Karşılığında bildirim gölgesinde hiç
+/// kaybolmayan kalıcı bir satır duruyor; bunu kullanıcıya sormadan açmak
+/// (Xiaomi/Oppo gibi agresif markalarda bile) doğru değil. Aramalar geç gelen
+/// kullanıcı Ayarlar'dan kendisi açar; agresif markalarda ayardaki açıklama
+/// açmayı önerir.
 class ForegroundService {
   static const _prefKey = 'hophop_background_service';
 
   static const _storage = FlutterSecureStorage();
 
-  /// Kullanıcı tercihi; hiç dokunulmamışsa markaya göre karar verilir.
+  /// Kullanıcı tercihi; hiç dokunulmamışsa kapalı.
   static Future<bool> isEnabled() async {
     final saved = await _storage.read(key: _prefKey);
-    if (saved != null) return saved == '1';
-    return PermissionService.isAggressiveOem();
+    return saved == '1';
   }
 
   static Future<void> setEnabled(bool enabled) async {

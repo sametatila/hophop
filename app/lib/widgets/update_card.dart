@@ -25,6 +25,31 @@ class UpdateCard extends StatelessWidget {
   }
 }
 
+/// Yeni sürüm ilk kez görüldüğünde kullanıcının önüne çıkan diyalog.
+///
+/// İçeriği ana ekrandaki kartın ta kendisi: indirme ilerlemesi, "bilinmeyen
+/// kaynak" izni ve hata/tekrar dene akışı tek yerde kalsın diye kopyalanmadı.
+Future<void> showUpdateDialog(BuildContext context, AppUpdate update) {
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      // double.maxFinite: diyalog kendi genişliğine yayılsın; sabit bir ölçü
+      // dar telefonlarda taşardı.
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(child: _UpdatePanel(update: update)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Sonra'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _UpdatePanel extends StatefulWidget {
   final AppUpdate update;
   const _UpdatePanel({required this.update});

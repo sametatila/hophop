@@ -4,10 +4,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import '../config.dart';
+import 'notification_service.dart';
 
 /// Sunucudaki `version.json` kaydı.
 class AppUpdate {
@@ -52,9 +54,22 @@ class AppUpdate {
 /// kullanıcı verir; sessiz kurulum yapılmaz.
 class UpdateService {
   static const _channel = MethodChannel('hophop/updater');
+  static const _storage = FlutterSecureStorage();
+
+  /// En son duyurusu yapılmış sürüm kodu — aynı sürüm için tekrar tekrar
+  /// bildirim/diyalog çıkarmamak için saklanır.
+  static const _announcedKey = 'hophop_update_announced';
 
   /// Ana ekrandaki güncelleme kartı bunu dinler.
   static final available = ValueNotifier<AppUpdate?>(null);
+
+  /// Yeni sürüm İLK KEZ görüldüğünde dolar; ana ekran bir kez diyalog gösterip
+  /// null'a çeker. Kartı fark etmeyen (ya da hiç ana ekrana bakmayan)
+  /// kullanıcının karşısına güncelleme kendiliğinden çıksın diye var.
+  static final prompt = ValueNotifier<AppUpdate?>(null);
+
+  /// Güncelleme bildirimi — arama (1001) ile çakışmayan sabit kimlik.
+  static const int updateNotificationId = 1002;
 
   static ({int code, String name})? _installed;
   static DateTime? _lastCheck;
@@ -103,12 +118,40 @@ class UpdateService {
       final update = AppUpdate.tryParse(body);
       available.value =
           (update != null && update.versionCode > installed.code) ? update : null;
-      return available.value;
+      final found = available.value;
+      if (found != null) await _announceOnce(found);
+      return found;
     } catch (_) {
       // Ağ yoksa ya da dosya henüz konmadıysa sessizce geç — güncelleme
       // denetimi hiçbir zaman uygulamanın önüne geçmemeli.
       return null;
     }
+  }
+
+  /// Yeni sürümü kullanıcının ÖNÜNE çıkarır: bildirim gölgesine bir satır
+  /// düşer + uygulama açıksa ana ekran diyalog gösterir.
+  ///
+  /// Neden gerekli: güncelleme kartı yalnızca ana ekranın tepesinde duruyordu.
+  /// Çocuklar Ayarlar'a girip "Denetle" demiyor, yetişkinler de kartı
+  /// kaydırıp geçebiliyor. Sürüm başına bir kez duyurulur — dırdır etmez.
+  static Future<void> _announceOnce(AppUpdate u) async {
+    try {
+      final seen = int.tryParse(await _storage.read(key: _announcedKey) ?? '');
+      if (seen == u.versionCode) return;
+      await _storage.write(key: _announcedKey, value: '${u.versionCode}');
+    } catch (_) {
+      // Güvenli depolama okunamazsa duyuruyu atlamak yerine bir kez daha
+      // göstermeyi seç: kaçırılan güncelleme, fazladan bildirimden kötü.
+    }
+    prompt.value = u;
+    try {
+      await NotificationService.showGeneral(
+        updateNotificationId,
+        'HopHop güncellemesi hazır',
+        'Sürüm ${u.version} — kurmak için dokun',
+        payload: 'update',
+      );
+    } catch (_) {/* bildirim izni yoksa diyalog yine de çıkar */}
   }
 
   /// APK'yı önbelleğe indirir. [onProgress] 0..1 arası ilerleme verir.

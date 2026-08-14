@@ -168,13 +168,18 @@ en sık yapılan iki hata bunlar.
 
 Kullanıcı tarafında ne oluyor:
 
-- Ana ekranda ve Ayarlar'da "Yeni sürüm hazır" kartı çıkar (`--notes` metni burada
-  görünür). Elle bakmak isteyen: **Ayarlar → Uygulama sürümü → Denetle**.
+- **Kullanıcı hiçbir yere bakmasa da haberi olur.** Yeni sürüm ilk görüldüğünde,
+  o sürüm için bir kez: bildirim gölgesine "HopHop güncellemesi hazır" satırı
+  düşer *ve* uygulama açıksa güncelleme diyaloğu önüne gelir. Aynı sürüm için
+  tekrarlamaz. Bildirime dokunmak da diyaloğu açar.
+- Ayrıca ana ekranda ve Ayarlar'da "Yeni sürüm hazır" kartı durur (`--notes`
+  metni burada görünür). Elle bakmak isteyen: **Ayarlar → Uygulama sürümü → Denetle**.
 - "Şimdi güncelle" → APK iner → sistem kurulum ekranı açılır → kullanıcı onaylar.
   Sessiz kurulum yok; veriler ve oturum korunur.
 - Android 8+ ilk seferde "bu kaynaktan kuruluma izin ver" ister; uygulama bu izni
   açıklayan bir diyalog gösterip doğrudan ilgili ayar ekranına götürür.
-- Otomatik denetim 6 saatte bir; ağ yoksa sessizce geçer, kullanıcıyı rahatsız etmez.
+- Otomatik denetim: açılışta ve uygulama her öne geldiğinde, en fazla 6 saatte bir
+  ağa çıkacak şekilde. Ağ yoksa sessizce geçer, kullanıcıyı rahatsız etmez.
 
 APK nerede duruyor: **GitHub Releases** — `v1.1.0` etiketi altında
 `hophop-1.1.0.apk`. Betik sürümü kendisi oluşturur; aynı sürüm ikinci kez

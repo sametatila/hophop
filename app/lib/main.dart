@@ -17,6 +17,7 @@ import 'theme/hop_theme.dart';
 import 'services/call_manager.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
+import 'services/update_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +61,13 @@ Future<T?> _step<T>(
 void _onNotificationResponse(NotificationResponse response) {
   final payload = response.payload;
   if (payload == null || payload.isEmpty) return;
+  // Güncelleme bildirimi → sürümü tazeleyip kurulum diyaloğunu aç.
+  if (payload == 'update') {
+    UpdateService.check(force: true).then((update) {
+      if (update != null) UpdateService.prompt.value = update;
+    });
+    return;
+  }
   // Mesaj bildirimi → doğrudan o sohbeti aç.
   if (payload.startsWith('chat:')) {
     final friendId = payload.substring(5);
@@ -126,6 +134,9 @@ class _HopHopAppState extends State<HopHopApp> with WidgetsBindingObserver {
       CallManager.checkPendingRing();
       ActivityStore.refresh();
       RingListener.start();
+      // Uygulamayı hiç kapatmayanlar da güncellemeyi görsün: açılışta bir kez
+      // bakmak yetmiyordu. Kendi içinde 6 saatlik gemi var, ağa yüklenmez.
+      UpdateService.check();
     }
   }
 

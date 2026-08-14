@@ -1,5 +1,6 @@
 package com.hophop.hophop
 
+import android.app.NotificationManager
 import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
@@ -49,6 +50,11 @@ class MainActivity : FlutterActivity() {
 
                     // Android 8+: "bilinmeyen kaynaklardan kurulum" izni verilmiş mi?
                     "canInstall" -> result.success(canInstallPackages())
+
+                    // Android 14+: kilitli ekranda arama ekranını doğrudan açma
+                    // izni ("tam ekran bildirim") verilmiş mi? Ayarlar ekranı
+                    // durumu göstermek için sorar; sormanın yan etkisi yoktur.
+                    "canFullScreenIntent" -> result.success(canFullScreenIntent())
 
                     // Kullanıcıyı o iznin ayar ekranına götürür
                     "openInstallSettings" -> {
@@ -170,6 +176,16 @@ class MainActivity : FlutterActivity() {
     private fun canInstallPackages(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+
+    /// Android 14 (UPSIDE_DOWN_CAKE) öncesinde USE_FULL_SCREEN_INTENT kurulumda
+    /// verilir; kullanıcının kapatabileceği bir anahtar yoktur → her zaman açık.
+    private fun canFullScreenIntent(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .canUseFullScreenIntent()
         } else {
             true
         }
