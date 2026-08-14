@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HopHop — Ailenle görüntülü konuş</title>
 <meta name="description" content="Ailenin kendi arasında görüntülü konuşması için yapılmış, uçtan uca şifreli Android uygulaması. Sadece davetle dağıtılıyor.">
-<meta name="theme-color" content="#0E1424">
+<meta name="theme-color" content="#160E1C">
 <meta property="og:title" content="HopHop — Ailenle görüntülü konuş">
 <meta property="og:description" content="Uçtan uca şifreli aile görüşmeleri, eğlenceli yüz efektleri, kaçmayan aramalar.">
 <meta property="og:type" content="website">
@@ -22,21 +22,29 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap">
 <style>
-/* ————— Marka belirteçleri: app/lib/theme/hop_theme.dart ile birebir ————— */
+/* ————— Marka belirteçleri —————
+   Palet doğrudan UYGULAMA İKONUNDAN türetilmiştir (brand/hophop-icon.svg):
+   sağ üstte mercan, ortada pembe, sol altta mor. Sayfa önce indireceğin
+   ikonu göstermeli — soğuk indigo/camgöbeği bir zeminde sıcak pembe bir
+   ikon yüzüyordu, ikisi aynı markadan görünmüyordu.
+   (Uygulamanın yetişkin teması hâlâ indigo; çocuk teması bu sıcak aileden.) */
 :root{
-  --indigo:#5B5BD6;      /* Hop.gradient[0] */
-  --violet:#7A5BE0;      /* Hop.gradient[1] */
-  --cyan:#2FA8C9;        /* Hop.gradient[2] */
-  --kid-orange:#FF8A50;  /* çocuk modu vurgusu */
-  --kid-pink:#FF5D8F;
-  --bg:#0E1424;          /* Hop.callGradient tonları */
-  --bg-2:#141A2E;
-  --bg-3:#1E2545;
-  --ink:#F3F5FF;
-  --muted:#A6AEC9;
-  --line:rgba(255,255,255,.10);
-  --card:rgba(255,255,255,.045);
-  --radius:18px;         /* Hop.radius (yetişkin) */
+  --coral:#FF7A65;       /* ikon: sağ üst */
+  --pink:#FF939D;        /* ikon: sol üst */
+  --magenta:#DC6EBA;     /* ikon: sağ alt */
+  --purple:#B266D5;      /* ikon: sol alt */
+  --brand:linear-gradient(120deg,var(--coral),var(--pink) 34%,var(--magenta) 68%,var(--purple));
+  --warn:#FFB86B;
+  /* Koyu zemin de aynı sıcaklıkta: erik/patlıcan, lacivert değil */
+  --bg:#120A17;
+  --bg-2:#1B1024;
+  --bg-3:#281433;
+  --ink:#FDF2F7;
+  --muted:#D2BACD;      /* sıcak zeminde okunurluk için açıldı */
+  --line:rgba(255,255,255,.12);
+  /* Kart zemini yarı saydam KOYU: arkadaki degrade metnin altında yıkanmasın */
+  --card:rgba(24,13,32,.58);
+  --radius:22px;         /* ikonun squircle yumuşaklığını yansıtır */
   --maxw:960px;
 }
 *{box-sizing:border-box}
@@ -51,19 +59,20 @@ a{color:inherit}
 
 /* ————— Zemin: dönen degrade blob'lar (BlobBackground'ın web karşılığı) ————— */
 .bg{position:fixed;inset:0;z-index:-2;overflow:hidden;background:
-  radial-gradient(120% 90% at 50% -10%, var(--bg-3) 0%, var(--bg-2) 45%, var(--bg) 100%)}
-.blob{position:absolute;width:58vmax;height:58vmax;border-radius:50%;filter:blur(80px);opacity:.38;
+  radial-gradient(110% 80% at 50% -5%, var(--bg-3) 0%, var(--bg-2) 42%, var(--bg) 100%)}
+.blob{position:absolute;width:52vmax;height:52vmax;border-radius:50%;filter:blur(96px);opacity:.24;
   will-change:transform}
-.blob.i{background:var(--indigo);top:-22vmax;left:-14vmax;animation:drift1 22s ease-in-out infinite}
-.blob.v{background:var(--violet);top:10vmax;right:-22vmax;animation:drift2 26s ease-in-out infinite}
-.blob.c{background:var(--cyan);bottom:-28vmax;left:18vmax;animation:drift3 30s ease-in-out infinite}
+.blob.i{background:var(--coral);top:-24vmax;left:-16vmax;animation:drift1 22s ease-in-out infinite}
+.blob.v{background:var(--magenta);top:8vmax;right:-22vmax;animation:drift2 26s ease-in-out infinite}
+.blob.c{background:var(--purple);bottom:-28vmax;left:16vmax;animation:drift3 30s ease-in-out infinite}
 @keyframes drift1{50%{transform:translate3d(14vmax,10vmax,0) scale(1.12)}}
 @keyframes drift2{50%{transform:translate3d(-16vmax,12vmax,0) scale(.9)}}
 @keyframes drift3{50%{transform:translate3d(10vmax,-14vmax,0) scale(1.1)}}
 /* ince fütüristik ızgara */
-.grid{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
-  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
-  background-size:64px 64px;
+.grid{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.55;
+  /* Keskin ızgara yerine nokta dokusu: ikonun yuvarlak dili ile uyumlu */
+  background-image:radial-gradient(var(--line) 1.4px,transparent 1.4px);
+  background-size:30px 30px;
   -webkit-mask-image:radial-gradient(80% 55% at 50% 22%,#000 0%,transparent 78%);
           mask-image:radial-gradient(80% 55% at 50% 22%,#000 0%,transparent 78%)}
 
@@ -85,7 +94,7 @@ header{padding:clamp(52px,11vh,96px) 0 8px;text-align:center}
 @keyframes pulse{from{transform:scale(1);opacity:.45}to{transform:scale(1.9);opacity:0}}
 
 h1{margin:0;font-size:clamp(40px,9vw,68px);font-weight:800;letter-spacing:-.03em;line-height:1.05}
-h1 span{background:linear-gradient(100deg,var(--indigo),var(--violet) 40%,var(--cyan) 75%,var(--violet));
+h1 span{background:linear-gradient(100deg,var(--coral),var(--pink) 30%,var(--magenta) 62%,var(--purple) 88%,var(--coral));
   background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
   animation:sheen 7s linear infinite}
 @keyframes sheen{to{background-position:220% 0}}
@@ -93,18 +102,18 @@ h1 span{background:linear-gradient(100deg,var(--indigo),var(--violet) 40%,var(--
 .sub{margin:12px auto 0;max-width:52ch;color:var(--muted);font-size:clamp(15px,2.4vw,17px)}
 .pill{display:inline-flex;gap:9px;align-items:center;margin-bottom:20px;padding:7px 15px;border-radius:999px;
   border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:13.5px;font-weight:600;color:var(--muted)}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 0 rgba(47,168,201,.7);
+.dot{width:7px;height:7px;border-radius:50%;background:var(--pink);box-shadow:0 0 0 0 rgba(255,147,157,.7);
   animation:blip 2s ease-out infinite}
-@keyframes blip{70%{box-shadow:0 0 0 9px rgba(47,168,201,0)}100%{box-shadow:0 0 0 0 rgba(47,168,201,0)}}
+@keyframes blip{70%{box-shadow:0 0 0 9px rgba(255,147,157,0)}100%{box-shadow:0 0 0 0 rgba(255,147,157,0)}}
 
 /* ————— Butonlar ————— */
 .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
 .btn{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:var(--radius);
   font-weight:700;font-size:16px;text-decoration:none;border:1px solid transparent;
   transition:transform .18s cubic-bezier(.2,.8,.3,1),box-shadow .18s,background .18s}
-.btn.primary{background:linear-gradient(120deg,var(--indigo),var(--violet) 55%,var(--cyan));color:#fff;
-  box-shadow:0 12px 34px rgba(91,91,214,.42)}
-.btn.primary:hover{transform:translateY(-2px);box-shadow:0 18px 44px rgba(91,91,214,.55)}
+.btn.primary{background:var(--brand);color:#3A1230;
+  box-shadow:0 12px 34px rgba(220,110,186,.42)}
+.btn.primary:hover{transform:translateY(-2px);box-shadow:0 18px 44px rgba(220,110,186,.58)}
 .btn.primary:active{transform:translateY(0) scale(.985)}
 .btn.ghost{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--ink)}
 .btn.ghost:hover{background:rgba(255,255,255,.10);transform:translateY(-2px)}
@@ -119,11 +128,11 @@ h2{font-size:clamp(22px,4vw,29px);font-weight:800;letter-spacing:-.02em;margin:0
 @media (min-width:620px){.cards{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:940px){.cards{grid-template-columns:repeat(4,1fr)}}
 .card{padding:20px;border-radius:var(--radius);border:1px solid var(--line);background:var(--card);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   transition:transform .25s cubic-bezier(.2,.8,.3,1),border-color .25s,background .25s}
-.card:hover{transform:translateY(-4px);border-color:rgba(122,91,224,.55);background:rgba(255,255,255,.075)}
-.ico{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin-bottom:13px;color:#DDE4FF;
-  background:linear-gradient(135deg,rgba(91,91,214,.35),rgba(47,168,201,.35));border:1px solid var(--line)}
+.card:hover{transform:translateY(-4px);border-color:rgba(220,110,186,.55);background:rgba(255,255,255,.075)}
+.ico{width:46px;height:46px;border-radius:16px;display:grid;place-items:center;margin-bottom:13px;color:#FFE6F0;
+  background:linear-gradient(135deg,rgba(255,122,101,.34),rgba(178,102,213,.34));border:1px solid var(--line)}
 .ico svg{display:block}
 .card h3{margin:0 0 6px;font-size:17px;font-weight:800;text-wrap:balance}
 .card p{margin:0;color:var(--muted);font-size:14.5px}
@@ -131,10 +140,10 @@ h2{font-size:clamp(22px,4vw,29px);font-weight:800;letter-spacing:-.02em;margin:0
 /* ————— Adımlar ————— */
 .steps{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));counter-reset:s}
 .step{position:relative;padding:22px 22px 22px 66px;border-radius:var(--radius);border:1px solid var(--line);
-  background:var(--card)}
+  background:var(--card);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .step::before{counter-increment:s;content:counter(s);position:absolute;left:20px;top:20px;
-  width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:15px;color:#fff;
-  background:linear-gradient(135deg,var(--indigo),var(--cyan))}
+  width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:15px;color:#3A1230;
+  background:linear-gradient(135deg,var(--coral),var(--purple))}
 .step h3{margin:0 0 5px;font-size:16px;font-weight:800}
 .step p{margin:0;color:var(--muted);font-size:14.5px}
 
@@ -330,7 +339,7 @@ footer .fmark{display:inline-flex;align-items:center;gap:9px;font-weight:800;col
     if (ready) return;               // adres hazır — normal indirme aksın
     ev.preventDefault();
     note.textContent = 'Kurulum dosyası henüz yayında değil — APK\'yı sana aileden gönderiyorlar.';
-    note.style.color = 'var(--kid-orange)';
+    note.style.color = 'var(--warn)';
   });
 })();
 </script>

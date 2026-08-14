@@ -8,9 +8,9 @@
       <stop offset="1" stop-color="#B266D5"/>
     </linearGradient>
     <radialGradient id="sky" cx="50%" cy="0%" r="100%">
-      <stop offset="0" stop-color="#1E2545"/>
-      <stop offset=".5" stop-color="#141A2E"/>
-      <stop offset="1" stop-color="#0E1424"/>
+      <stop offset="0" stop-color="#281433"/>
+      <stop offset=".5" stop-color="#1B1024"/>
+      <stop offset="1" stop-color="#120A17"/>
     </radialGradient>
     <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="110"/>
@@ -19,10 +19,10 @@
   </defs>
 
   <rect width="1200" height="630" fill="url(#sky)"/>
-  <g filter="url(#soft)" opacity=".38">
-    <circle cx="180" cy="90" r="280" fill="#5B5BD6"/>
-    <circle cx="1080" cy="240" r="260" fill="#7A5BE0"/>
-    <circle cx="520" cy="700" r="300" fill="#2FA8C9"/>
+  <g filter="url(#soft)" opacity=".30">
+    <circle cx="180" cy="90" r="280" fill="#FF7A65"/>
+    <circle cx="1080" cy="240" r="260" fill="#DC6EBA"/>
+    <circle cx="520" cy="700" r="300" fill="#B266D5"/>
   </g>
 
   <!-- Uygulama ikonu (192 birimlik master, 1.25 ölçekle 240 px) -->
@@ -56,6 +56,6 @@
   <g font-family="Manrope, Segoe UI, Helvetica, Arial, sans-serif">
     <text x="450" y="290" fill="#F3F5FF" font-size="96" font-weight="800" letter-spacing="-3">HopHop</text>
     <text x="450" y="358" fill="#F3F5FF" font-size="40" font-weight="700">Ailenle görüntülü konuş.</text>
-    <text x="452" y="414" fill="#A6AEC9" font-size="27" font-weight="500">Uçtan uca şifreli · Yüz efektleri · Sadece davetle</text>
+    <text x="452" y="414" fill="#D2BACD" font-size="27" font-weight="500">Uçtan uca şifreli · Yüz efektleri · Sadece davetle</text>
   </g>
 </svg>
