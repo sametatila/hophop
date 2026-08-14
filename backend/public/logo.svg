@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+<!-- DİKKAT: width/height yüzde olmalı. Sabit "192" verilirse tarayıcı SVG'yi
+     büyütmez; 512'lik kanvasa 192 px olarak SOL ÜST köşeye çizer ve üretilen
+     PNG'nin %62'si boş kalır (uygulamada logo minicik ve sola kaçık görünmüştü). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="100%" height="100%"
+     preserveAspectRatio="xMidYMid meet">
   <!--
     HopHop marka işareti — TEK KAYNAK.
 

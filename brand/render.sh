@@ -30,9 +30,9 @@ echo "✓ app/assets/brand/hophop.png (512px)"
 cp brand/hophop-icon.svg backend/public/logo.svg
 echo "✓ backend/public/logo.svg"
 
-# Sosyal önizleme: og-source.svg marka işaretini gömülü olarak taşır
+# Sosyal önizleme: og-source.svg marka işaretini gömülü olarak taşır.
+# Kare olmadığı için render() yerine doğrudan 1200x630 pencereyle alınır.
 TMP=$(mktemp -d)
-render backend/assets/og-source.svg 1200 "$TMP/og.png" || true
 "$CHROME" --headless --disable-gpu --hide-scrollbars --window-size=1200,630 \
   --screenshot="$TMP/og.png" --virtual-time-budget=2500 \
   "file://$PWD/backend/assets/og-source.svg" >/dev/null 2>&1

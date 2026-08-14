@@ -11,7 +11,6 @@ import '../theme/hop_theme.dart';
 import 'tab_refresh.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
-import '../widgets/hop_logo.dart';
 import '../widgets/update_card.dart';
 import 'chat_screen.dart';
 
@@ -37,8 +36,11 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
   @override
   void initState() {
     super.initState();
-    _activity = Listenable.merge(
-        [ActivityStore.unread, ActivityStore.missed, ActivityStore.lastActivity]);
+    _activity = Listenable.merge([
+      ActivityStore.unread,
+      ActivityStore.missed,
+      ActivityStore.lastActivity
+    ]);
     _activity.addListener(_onActivity);
     _load();
     // Sessiz güncelleme denetimi: başarısız olursa hiçbir şey göstermez.
@@ -74,6 +76,15 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
     if (day == today) return DateFormat('HH:mm').format(dt);
     if (today.difference(day).inDays == 1) return 'Dün';
     return DateFormat('d.MM').format(dt);
+  }
+
+  /// Selamlama başlığı telefonda uygulamanın kendi başlık ölçeğinde (23/26),
+  /// tablette daha ferah (28/32). Tek ölçü ikisine birden uymuyordu: tablette
+  /// yerinde duran boyut telefonda satırı baştan sona dolduruyordu.
+  static double _greetingSize(BuildContext context) {
+    final tablet = MediaQuery.sizeOf(context).shortestSide >= 600;
+    if (Hop.isKid) return tablet ? 32 : 26;
+    return tablet ? 28 : 23;
   }
 
   Future<void> _load() async {
@@ -124,30 +135,30 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
                       bottom: false,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    me == null
-                                        ? 'Merhaba!'
-                                        : 'Merhaba, ${me.firstName}!',
-                                    style: theme.textTheme.headlineMedium
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.w800),
-                                  ),
-                                  Text(
-                                    'Bugün kiminle konuşmak istersin?',
-                                    style: TextStyle(
-                                        color: theme.colorScheme.outline,
-                                        fontSize: 15),
-                                  ),
-                                ],
+                            Text(
+                              me == null
+                                  ? 'Merhaba!'
+                                  : 'Merhaba, ${me.firstName}!',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              // Tek ölçü iki cihaza uymuyordu: tablette
+                              // yerinde duran boyut telefonda satırı
+                              // dolduruyordu. Kısa kenar 600 dp eşiği
+                              // Material'ın tablet sınırı.
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                fontSize: _greetingSize(context),
                               ),
                             ),
-                            const HopLogo(size: 60),
+                            Text(
+                              'Bugün kiminle konuşmak istersin?',
+                              style: TextStyle(
+                                  color: theme.colorScheme.outline,
+                                  fontSize: 15),
+                            ),
                           ],
                         ).animate().fadeIn(duration: Hop.normal),
                       ),
@@ -178,7 +189,8 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
                             _friendCard(_sortedFriends[i])
                                 .animate(delay: (50 * i).ms)
                                 .fadeIn(duration: Hop.normal)
-                                .slideY(begin: 0.12, curve: Curves.easeOutCubic),
+                                .slideY(
+                                    begin: 0.12, curve: Curves.easeOutCubic),
                       ),
                     ),
                 ],
@@ -196,8 +208,7 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors:
-              Hop.gradient.map((c) => c.withValues(alpha: 0.16)).toList(),
+          colors: Hop.gradient.map((c) => c.withValues(alpha: 0.16)).toList(),
         ),
       ),
       child: Column(
@@ -228,9 +239,8 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
                       padding: const EdgeInsets.all(2.5),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: today
-                            ? LinearGradient(colors: Hop.gradient)
-                            : null,
+                        gradient:
+                            today ? LinearGradient(colors: Hop.gradient) : null,
                       ),
                       // Hero etiketi yok: aynı kişi hem doğum günü şeridinde
                       // hem alttaki kartta olabilir, iki aynı etiket çakışır.
@@ -244,8 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
                       style: TextStyle(
                         fontSize: 12,
                         color: today ? Colors.deepOrange : Colors.black54,
-                        fontWeight:
-                            today ? FontWeight.w800 : FontWeight.normal,
+                        fontWeight: today ? FontWeight.w800 : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -346,10 +355,10 @@ class _HomeScreenState extends State<HomeScreen> with TabRefresh {
                                       : isBirthday
                                           ? Colors.deepOrange
                                           : theme.colorScheme.outline,
-                                  fontWeight: (missedCount > 0 ||
-                                          unreadCount > 0)
-                                      ? FontWeight.w700
-                                      : FontWeight.normal,
+                                  fontWeight:
+                                      (missedCount > 0 || unreadCount > 0)
+                                          ? FontWeight.w700
+                                          : FontWeight.normal,
                                   fontSize: 13),
                             ),
                           ),
