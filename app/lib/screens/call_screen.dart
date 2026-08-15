@@ -29,6 +29,10 @@ class CallScreen extends StatefulWidget {
   final String livekitUrl;
   final String livekitToken;
 
+  /// Küçük pencereden dönülüyorsa oradaki durum (süre, mikrofon/kamera/hoparlör).
+  /// null → görüşme yeni başlıyor.
+  final MinimizedCall? resume;
+
   const CallScreen({
     super.key,
     required this.room,
@@ -37,6 +41,7 @@ class CallScreen extends StatefulWidget {
     required this.roomName,
     required this.livekitUrl,
     required this.livekitToken,
+    this.resume,
   });
 
   @override
@@ -54,15 +59,21 @@ class _CallScreenState extends State<CallScreen>
   Ticker? _fxTicker;
   String _fxCat = 'animal';
   EventsListener<RoomEvent>? _listener;
-  bool _micOn = true;
-  late bool _camOn = widget.videoCall;
-  late bool _speakerOn = widget.videoCall; // görüntülüde hoparlör varsayılan
+  late bool _micOn = widget.resume?.micOn ?? true;
+  late bool _camOn = widget.resume?.camOn ?? widget.videoCall;
+  // Görüntülüde hoparlör varsayılan açık.
+  late bool _speakerOn = widget.resume?.speakerOn ?? widget.videoCall;
   bool _showEffects = false;
-  bool _pipSupported = false;
+
+  /// Görüşmenin gerçek başlangıcı — küçültüp büyütmek sayacı sıfırlamasın.
+  late final DateTime _startedAt = widget.resume?.startedAt ?? DateTime.now();
+
+  /// Ekran küçük pencereye devrediliyor: görüşme BİTMİYOR, bu yüzden
+  /// dispose'da oda kapatılmaz ve süre sunucuya işlenmez.
+  bool _toMini = false;
   bool _reconnecting = false; // zayıf bağlantı: "Yeniden bağlanıyor…" durumu
   bool _peerLost = false; // karşı tarafın bağlantısı gitti (biz iyiyiz)
   bool _recovering = false; // kendi yeniden bağlanma döngümüz sürüyor
-  Duration _elapsed = Duration.zero;
   Timer? _clock;
   Timer? _reconnectWatchdog;
   Timer? _peerLostTimer;
@@ -156,7 +167,7 @@ class _CallScreenState extends State<CallScreen>
       ..on<TrackSubscribedEvent>((_) => setState(() {}))
       ..on<TrackUnsubscribedEvent>((_) => setState(() {}));
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+      if (mounted) setState(() {});
     });
     // Boş oda korunağı: karşı taraf hiç gelmezse (iptal/kopuş yarışları)
     // "Bağlanıyor"da takılı kalmak yerine kapat ve yeniden aramayı öner.
@@ -174,12 +185,9 @@ class _CallScreenState extends State<CallScreen>
     // kulaklıkla konuşurken sesin hoparlöre kaçmaması için istenen davranış.
     AudioManager.instance.setSpeakerOutputPreferred(_speakerOn);
     _applyProximity();
-    // Görüşme boyunca ev tuşu/geri tuşu uygulamayı kapatmasın, küçük pencereye
-    // geçirsin. Ekran kapanırken kapatılır (dispose).
+    // Görüşme boyunca ev tuşu uygulamayı kapatmasın, sistem küçük penceresine
+    // geçirsin. Görüşme gerçekten bitince kapatılır (dispose).
     PipService.setEligible(true);
-    PipService.isSupported().then((ok) {
-      if (mounted && ok) setState(() => _pipSupported = true);
-    });
     PipService.inPip.addListener(_onPipChanged);
   }
 
@@ -192,16 +200,28 @@ class _CallScreenState extends State<CallScreen>
     if (mounted) setState(() {});
   }
 
-  /// Ekranda gösterilecek bir görüntü var mı (kendi kameram ya da karşıdan
-  /// gelen)? Küçük pencerenin en-boy oranını buna göre seçiyoruz.
-  bool get _hasVideo =>
-      _camOn ||
-      widget.room.remoteParticipants.values.any((p) => _videoOf(p) != null);
-
-  /// Küçük pencereye geç. Görüntülüde 16:9; seslide kare, çünkü o pencerede
-  /// avatar gösteriliyor ve geniş dikdörtgen tuhaf duruyor.
-  Future<void> _minimize() async {
-    await PipService.enter(w: _hasVideo ? 16 : 1, h: _hasVideo ? 9 : 1);
+  /// Küçült: görüşme UYGULAMANIN İÇİNDE köşede yüzen pencereye devredilir,
+  /// kullanıcı sohbetlerde/kişilerde gezinmeye devam edebilir.
+  ///
+  /// Eskiden burada sistem PiP'ine geçiliyordu; o kip uygulamayı tamamen arka
+  /// plana aldığı için "küçült" pratikte "uygulamadan çık" demek oluyordu.
+  /// Sistem PiP'i yerinde duruyor ama artık yalnızca kullanıcı ev tuşuyla
+  /// uygulamadan çıkınca devreye giriyor (native onUserLeaveHint).
+  void _minimize() {
+    if (_toMini || !mounted) return;
+    _toMini = true;
+    Navigator.of(context).pop(MinimizedCall(
+      room: widget.room,
+      peer: widget.peer,
+      video: widget.videoCall,
+      roomName: widget.roomName,
+      livekitUrl: widget.livekitUrl,
+      livekitToken: widget.livekitToken,
+      startedAt: _startedAt,
+      micOn: _micOn,
+      camOn: _camOn,
+      speakerOn: _speakerOn,
+    ));
   }
 
   /// Ağ koptuğunda: ekranı açık tut, "Yeniden bağlanıyor…" göster ve
@@ -245,10 +265,9 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   void dispose() {
-    WakelockPlus.disable();
-    UpdateService.setProximity(false);
+    // Ekrana ait olanlar her hâlükârda bırakılır; küçük pencereye geçerken
+    // bunlar yeniden kurulacak (efekt denetleyicisi, dinleyici, sayaçlar).
     PipService.inPip.removeListener(_onPipChanged);
-    PipService.setEligible(false);
     _clock?.cancel();
     _reconnectWatchdog?.cancel();
     _peerLostTimer?.cancel();
@@ -257,11 +276,22 @@ class _CallScreenState extends State<CallScreen>
     _fxClock.dispose();
     _listener?.dispose();
     _fx.dispose();
-    widget.room.disconnect();
-    widget.room.dispose();
-    // Görüşme süresi sohbet akışındaki arama kaydına işlensin.
-    if (_elapsed.inSeconds > 0) {
-      api.callEnded(widget.roomName, _elapsed.inSeconds).catchError((_) {});
+    // Görüşmeye ait olanlar YALNIZCA gerçekten bittiğinde bırakılır. Küçük
+    // pencereye geçiyorsak oda bağlı kalmalı; onu CallManager kapatacak.
+    if (!_toMini) {
+      WakelockPlus.disable();
+      UpdateService.setProximity(false);
+      PipService.setEligible(false);
+      widget.room.disconnect();
+      widget.room.dispose();
+      // Görüşme süresi sohbet akışındaki arama kaydına işlensin.
+      if (_elapsed.inSeconds > 0) {
+        api.callEnded(widget.roomName, _elapsed.inSeconds).catchError((_) {});
+      }
+    } else {
+      // Küçük pencerede ekran kapalı değil ama kullanıcı gezmeye devam ediyor —
+      // yakınlık sensörü ekranı karartmamalı.
+      UpdateService.setProximity(false);
     }
     super.dispose();
   }
@@ -307,9 +337,12 @@ class _CallScreenState extends State<CallScreen>
     return lp == null ? null : _videoOf(lp);
   }
 
+  Duration get _elapsed => DateTime.now().difference(_startedAt);
+
   String get _timer {
-    final m = _elapsed.inMinutes.toString().padLeft(2, '0');
-    final s = (_elapsed.inSeconds % 60).toString().padLeft(2, '0');
+    final e = _elapsed;
+    final m = e.inMinutes.toString().padLeft(2, '0');
+    final s = (e.inSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
   }
 
@@ -435,8 +468,8 @@ class _CallScreenState extends State<CallScreen>
     final pip = PipService.inPip.value;
 
     return PopScope(
-      // Geri tuşu görüşmeyi BİTİRMEZ; WhatsApp gibi küçük pencereye geçer.
-      // Desteklemeyen cihazda ekran olduğu gibi kalır (kapatma kırmızı düğmede).
+      // Geri tuşu görüşmeyi BİTİRMEZ; WhatsApp gibi uygulama içi küçük
+      // pencereye geçer. Kapatmak kırmızı düğmede.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _minimize();
@@ -460,9 +493,10 @@ class _CallScreenState extends State<CallScreen>
               ),
 
             // ---- Küçült (sol üst) ----
-            // Geri tuşunun görsel karşılığı: aramayı kapatmadan küçük pencereye
-            // geçirir. Desteklemeyen cihazda hiç gösterilmez.
-            if (!pip && _pipSupported)
+            // Geri tuşunun görsel karşılığı: aramayı kapatmadan uygulama içi
+            // küçük pencereye geçirir. Sistem PiP'ine bağlı olmadığı için her
+            // cihazda çalışır.
+            if (!pip)
               SafeArea(
                 child: Align(
                   alignment: Alignment.topLeft,

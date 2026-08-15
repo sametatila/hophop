@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:livekit_client/livekit_client.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../config.dart';
 import '../models/models.dart';
 import '../screens/call_screen.dart';
 import '../screens/incoming_call_screen.dart';
 import '../screens/outgoing_call_screen.dart';
+import '../widgets/mini_call.dart';
 import 'activity_store.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
@@ -12,7 +15,9 @@ import 'call_service.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
 import 'notification_service.dart';
+import 'pip_service.dart';
 import 'ringtone_player.dart';
+import 'update_service.dart';
 
 /// Süren aramanın bilgisi — davet akışı (grup arama) buradan beslenir.
 class ActiveCall {
@@ -20,6 +25,39 @@ class ActiveCall {
   final String roomKeyB64;
   final bool video;
   ActiveCall({required this.roomName, required this.roomKeyB64, required this.video});
+}
+
+/// Küçültülmüş görüşmenin tüm durumu.
+///
+/// Görüşme ekranı kapansa da oda BAĞLI kalsın diye durum ekrandan çıkarılıp
+/// buraya alınır; tam ekrana dönüldüğünde ekran bu kayıttan kaldığı yerden
+/// kurulur. Süre `startedAt`ten hesaplanır — küçültme/büyütme sayacı sıfırlamaz.
+class MinimizedCall {
+  final Room room;
+  final UserProfile peer;
+  final bool video;
+  final String roomName;
+  final String livekitUrl;
+  final String livekitToken;
+  final DateTime startedAt;
+  final bool micOn;
+  final bool camOn;
+  final bool speakerOn;
+
+  const MinimizedCall({
+    required this.room,
+    required this.peer,
+    required this.video,
+    required this.roomName,
+    required this.livekitUrl,
+    required this.livekitToken,
+    required this.startedAt,
+    required this.micOn,
+    required this.camOn,
+    required this.speakerOn,
+  });
+
+  Duration get elapsed => DateTime.now().difference(startedAt);
 }
 
 /// Arama durum makinesi: giden arama (çaldır → kabul/red/zaman aşımı),
@@ -349,53 +387,162 @@ class CallManager {
     required bool replaceCurrent,
     required String roomName,
   }) async {
-    final nav = _nav;
-    if (nav == null) return false;
+    if (_nav == null) return false;
     _inCall = true;
     activeCall = ActiveCall(roomName: roomName, roomKeyB64: sharedKey, video: video);
+    final Room room;
     try {
-      final room = await CallService.connect(
+      room = await CallService.connect(
         url: url,
         token: token,
         sharedKeyB64: sharedKey,
         video: video,
       );
-      final route = MaterialPageRoute(
-        builder: (_) => CallScreen(
-            room: room,
-            peer: peer,
-            videoCall: video,
-            roomName: roomName,
-            livekitUrl: url,
-            livekitToken: token),
-        fullscreenDialog: true,
-      );
-      final result = replaceCurrent && nav.canPop()
-          ? await nav.pushReplacement(route)
-          : await nav.push(route);
-      // Bağlantı koptuysa (kullanıcı kapatmadı) tek dokunuşla yeniden ara.
-      if (result == 'dropped') {
-        final messenger = navigatorKey.currentContext == null
-            ? null
-            // ignore: use_build_context_synchronously
-            : ScaffoldMessenger.maybeOf(navigatorKey.currentContext!);
-        messenger?.showSnackBar(SnackBar(
-          content: const Text('Bağlantı koptu'),
-          duration: const Duration(seconds: 8),
-          action: SnackBarAction(
-            label: 'Yeniden ara',
-            onPressed: () => startCall(peer, video),
-          ),
-        ));
-      }
-      return true;
     } catch (e, st) {
       debugPrint('HopHop: oda kurulamadı: $e\n$st');
-      _toast('Görüşme kurulamadı');
-      return false;
-    } finally {
       _inCall = false;
       activeCall = null;
+      _toast('Görüşme kurulamadı');
+      return false;
+    }
+    // Ekranı açmayı beklemeden döneriz: görüşme artık ekrana değil, buradaki
+    // duruma bağlı (küçültülünce ekran kapansa da oda ayakta kalır).
+    unawaited(_showCallScreen(
+      room: room,
+      peer: peer,
+      video: video,
+      roomName: roomName,
+      url: url,
+      token: token,
+      replaceCurrent: replaceCurrent,
+    ));
+    return true;
+  }
+
+  // ---- Görüşme ekranı ↔ küçük pencere ----
+
+  /// Ekranda duran küçük pencere (varsa) ve ona ait görüşme.
+  static OverlayEntry? _miniEntry;
+  static MinimizedCall? minimized;
+
+  /// Görüşme ekranını açar ve kapanışını yönetir. Ekran [MinimizedCall] ile
+  /// kapandıysa görüşme bitmemiştir — küçük pencereye devredilir.
+  static Future<void> _showCallScreen({
+    required Room room,
+    required UserProfile peer,
+    required bool video,
+    required String roomName,
+    required String url,
+    required String token,
+    bool replaceCurrent = false,
+    MinimizedCall? resume,
+  }) async {
+    final nav = _nav;
+    if (nav == null) return;
+    final route = MaterialPageRoute(
+      builder: (_) => CallScreen(
+        room: room,
+        peer: peer,
+        videoCall: video,
+        roomName: roomName,
+        livekitUrl: url,
+        livekitToken: token,
+        resume: resume,
+      ),
+      fullscreenDialog: true,
+    );
+    final result = replaceCurrent && nav.canPop()
+        ? await nav.pushReplacement(route)
+        : await nav.push(route);
+    if (result is MinimizedCall) {
+      _showMini(result);
+      return;
+    }
+    _finishCall(peer: peer, video: video, dropped: result == 'dropped');
+  }
+
+  /// Görüşme gerçekten bitti: durum temizlenir. (Oda ekranın dispose'unda
+  /// kapatıldı; küçük pencereden bitirmede [endMinimized] kapatır.)
+  static void _finishCall({
+    required UserProfile peer,
+    required bool video,
+    required bool dropped,
+  }) {
+    _removeMini();
+    _inCall = false;
+    activeCall = null;
+    // Bağlantı koptuysa (kullanıcı kapatmadı) tek dokunuşla yeniden ara.
+    if (!dropped) return;
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+      content: const Text('Bağlantı koptu'),
+      duration: const Duration(seconds: 8),
+      action: SnackBarAction(
+        label: 'Yeniden ara',
+        onPressed: () => startCall(peer, video),
+      ),
+    ));
+  }
+
+  /// Görüşmeyi uygulamanın ÜSTÜNDE yüzen küçük pencereye alır. Katman
+  /// Navigator'ın overlay'ine elle eklendiği için sonradan açılan sayfaların da
+  /// üstünde kalır — kullanıcı sohbetlerde gezerken görüşme görünür durur.
+  static void _showMini(MinimizedCall call) {
+    _removeMini();
+    final overlay = navigatorKey.currentState?.overlay;
+    if (overlay == null) {
+      // Katman yoksa görüşmeyi askıda bırakma — sessizce kapat.
+      _closeRoom(call);
+      _finishCall(peer: call.peer, video: call.video, dropped: false);
+      return;
+    }
+    minimized = call;
+    _miniEntry = OverlayEntry(builder: (_) => MiniCallWindow(call: call));
+    overlay.insert(_miniEntry!);
+  }
+
+  static void _removeMini() {
+    _miniEntry?.remove();
+    _miniEntry = null;
+    minimized = null;
+  }
+
+  /// Küçük pencereden tam ekrana dön.
+  static Future<void> restoreMinimized() async {
+    final call = minimized;
+    if (call == null) return;
+    _removeMini();
+    await _showCallScreen(
+      room: call.room,
+      peer: call.peer,
+      video: call.video,
+      roomName: call.roomName,
+      url: call.livekitUrl,
+      token: call.livekitToken,
+      resume: call,
+    );
+  }
+
+  /// Küçük pencereden kapatma (kırmızı düğme) ya da o sırada bağlantının
+  /// kopması. Odayı ve görüşmeye özel sistem kilitlerini burada bırakırız —
+  /// normalde bunu görüşme ekranının dispose'u yapıyor.
+  static void endMinimized({bool dropped = false}) {
+    final call = minimized;
+    if (call == null) return;
+    _closeRoom(call);
+    _finishCall(peer: call.peer, video: call.video, dropped: dropped);
+  }
+
+  static void _closeRoom(MinimizedCall call) {
+    WakelockPlus.disable();
+    UpdateService.setProximity(false);
+    PipService.setEligible(false);
+    call.room.disconnect();
+    call.room.dispose();
+    final seconds = call.elapsed.inSeconds;
+    if (seconds > 0) {
+      api.callEnded(call.roomName, seconds).catchError((_) {});
     }
   }
 }

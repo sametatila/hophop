@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
+import '../services/call_manager.dart';
 import '../services/foreground_service.dart';
 import '../services/permission_service.dart';
 import '../services/update_service.dart';
@@ -404,6 +405,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               );
               if (sure == true && context.mounted) {
+                // Küçük pencere bir rota değil, Navigator'ın overlay'inde duran
+                // bir katman — giriş ekranı açılınca kendiliğinden kalkmaz.
+                CallManager.endMinimized();
                 await auth.logout();
                 if (context.mounted) {
                   // rootNavigator: giriş ekranı sekmenin içinde değil,
