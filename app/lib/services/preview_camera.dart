@@ -40,6 +40,9 @@ class PreviewCamera {
     try {
       await t.stop();
       await t.dispose();
+      // Kamera donanımı hemen serbest kalmıyor; LiveKit'in onu açması bu
+      // beklemeden hemen sonra gelirse (özellikle MIUI'de) hata veriyordu.
+      await Future<void>.delayed(const Duration(milliseconds: 150));
     } catch (_) {}
   }
 }

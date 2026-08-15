@@ -21,6 +21,18 @@ class AuthService {
   /// Arka plan isolate'i için: oturum token'ını doğrudan okur.
   static Future<String?> readToken() => _storage.read(key: _kToken);
 
+  /// Arka plan isolate'i için: oturumdaki kullanıcının kimliği.
+  /// Gelen bildirimin bu cihazdaki hesaba ait olup olmadığı buradan denetlenir.
+  static Future<String?> readUserId() async {
+    try {
+      final cached = await _storage.read(key: _kUser);
+      if (cached == null) return null;
+      return (jsonDecode(cached) as Map<String, dynamic>)['id'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Uygulama açılışında çağrılır. true → oturum var, giriş ekranı atlanır.
   Future<bool> restore() async {
     final token = await _storage.read(key: _kToken);
@@ -70,6 +82,13 @@ class AuthService {
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await api.updateMe(removeFcmToken: token);
+    } catch (_) {/* ağ yoksa sunucuda kalır — aşağıdaki silme yine korur */}
+    try {
+      // Token'ı CİHAZDAN da iptal et. Sunucudan silme başarısız olsa bile bu
+      // kayıt geçersizleşir; eski hesaba gönderilen push artık bu cihaza
+      // ulaşmaz ve sunucu ölü token'ı ilk denemede temizler. Yeni girişte
+      // taze bir token üretilir.
+      await FirebaseMessaging.instance.deleteToken();
     } catch (_) {}
     await RingListener.stop();
     try {

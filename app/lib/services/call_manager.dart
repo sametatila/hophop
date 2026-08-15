@@ -364,6 +364,9 @@ class CallManager {
     // görüşmenin ALTINA bir "gelen arama" ekranı bırakıyordu; görüşme bitince
     // o ekran karşımıza çıkıyordu.
     _handledRooms.add(call.roomName);
+    // Kamerayı HEMEN bırak: sunucu turu (respondCall) boyunca donanım serbest
+    // kalsın, LiveKit'in açması gecikmeye takılmasın.
+    await PreviewCamera.stop();
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
     // oda _handledRooms kümesinde kalır — yeniden çalmaz
@@ -398,7 +401,9 @@ class CallManager {
       return false;
     } catch (e, st) {
       debugPrint('HopHop: aramaya katılınamadı: $e\n$st');
-      _toast('Aramaya katılınamadı');
+      // Sebebi de yaz: düz "katılınamadı" hata ihbarlarını teşhis edilemez
+      // kılıyordu.
+      _toast('Aramaya katılınamadı: $e');
       return false;
     }
   }
@@ -444,7 +449,9 @@ class CallManager {
     } catch (e, st) {
       debugPrint('HopHop: oda kurulamadı: $e\n$st');
       activeCall = null;
-      _toast('Görüşme kurulamadı');
+      // Sebep de yazılıyor: düz "kurulamadı" hata ihbarlarını teşhis
+      // edilemez kılıyordu.
+      _toast('Görüşme kurulamadı: $e');
       return false;
     }
     // "Bağlandı" tonu — iki tarafta da çalar (arayan ve cevaplayan).

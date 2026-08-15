@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import 'activity_store.dart';
 import 'api_client.dart';
@@ -52,7 +53,20 @@ class FcmService {
     } catch (_) {/* Firebase yoksa/çevrimdışıysa sonraki açılışta denenir */}
   }
 
+  /// Bildirim BU cihazdaki hesaba mı ait? Hesap değiştirildiğinde eski hesabın
+  /// FCM token'ı sunucudan silinemediyse (ör. çıkış anında ağ yoksa) eski
+  /// hesabın aramaları bu cihaza düşmeye devam ediyordu.
+  static Future<bool> _isForMe(RemoteMessage message) async {
+    final to = message.data['to'] as String?;
+    if (to == null) return true; // eski sunucu sürümü — süzme yapma
+    final me = await AuthService.readUserId();
+    if (me == null || me == to) return true;
+    debugPrint('HopHop: başka hesaba ait bildirim atıldı (to=$to, ben=$me)');
+    return false;
+  }
+
   static Future<void> _handleForeground(RemoteMessage message) async {
+    if (!await _isForMe(message)) return;
     final type = message.data['type'];
     switch (type) {
       case 'incoming_call':
@@ -107,6 +121,7 @@ class FcmService {
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  if (!await FcmService._isForMe(message)) return;
   // Ayrı isolate: bildirim eklentisini burada da başlatmak gerekir.
   await NotificationService.init(onResponse: (_) {});
   switch (message.data['type']) {

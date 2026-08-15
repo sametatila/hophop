@@ -16,11 +16,16 @@ export async function pushToUser(
   const tokens: string[] = snap.get('fcmTokens') ?? [];
   if (tokens.length === 0) return { devices: 0, delivered: 0 };
 
+  // 'to': bildirimin KİME ait olduğu. Cihazda hesap değiştirildiğinde eski
+  // hesabın token'ı (silinmesi başarısız olduysa) hâlâ bu cihaza düşebiliyor;
+  // istemci bu alana bakıp kendisine ait olmayan bildirimi atıyor.
+  const payload = { ...data, to: userId };
+
   const results = await Promise.allSettled(
     tokens.map((token) =>
       messaging().send({
         token,
-        data,
+        data: payload,
         android: { priority: 'high', ttl: 45_000 },
       }),
     ),
