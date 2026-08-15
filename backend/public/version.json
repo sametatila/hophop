@@ -1,7 +1,7 @@
 {
-  "versionCode": 3,
-  "version": "1.0.2",
-  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.2/hophop-1.0.2.apk",
-  "size": 87536854,
-  "notes": "Görüşürken küçük pencere: aramayı küçültünce uygulamada gezinmeye devam edebilirsin. Aranıyor, bağlandı ve kapandı sesleri eklendi. Telefon titreşimdeyken gelen arama artık titriyor. Akıllı bileklik ve saatlere gelen arama bildirimi düzeltildi."
+  "versionCode": 4,
+  "version": "1.0.3",
+  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.3/hophop-1.0.3.apk",
+  "size": 49242999,
+  "notes": "Kilitli telefonda gelen arama artık tam ekran açılıyor. Görüşme kapandıktan sonra ekranda kalan gelen arama hatası giderildi. Görüntülü ararken kendi kameranı görüyorsun. Gruba davet ettiğin kişiler arama ekranında kart olarak beliriyor. Kurulum dosyası 87 MB'tan 49 MB'a indi."
 }
