@@ -41,6 +41,60 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // APK'nın taşıdığı mimariler BURADA sabitlenir.
+        //
+        // NEDEN: `flutter build apk --target-platform android-arm64` yalnızca
+        // FLUTTER'ın kendi kitaplıklarını (libflutter.so, libapp.so) kısıtlar;
+        // eklentilerin .so dosyaları (webrtc, ML Kit, datastore…) yine her
+        // mimari için pakete girer. Sonuçta APK "x86_64 destekliyorum" der ama
+        // içinde x86_64 motoru yoktur. Android cihazın tercih ettiği ilk
+        // mimariyi seçtiği için emülatörde (abilist: x86_64,arm64-v8a)
+        // primaryCpuAbi=x86_64 seçilir ve uygulama açılışta çöker:
+        //   dlopen failed: libflutter.so is for EM_AARCH64 instead of EM_X86_64
+        // Aynı tuzak 32-bit (armeabi-v7a) telefonlarda da geçerliydi.
+        //
+        // Süzme paketleme adımında yapılıyor (aşağıdaki `packaging` bloğu);
+        // defaultConfig.ndk.abiFilters bağımlılıklardan (AAR) gelen .so
+        // dosyalarını süzmüyor — denendi, pakete yine giriyorlar.
+    }
+
+    // APK'ya YALNIZCA istenen mimarilerin kitaplıkları girsin.
+    //
+    // NEDEN GEREKLİ: `flutter build apk --target-platform android-arm64`
+    // yalnızca FLUTTER'ın kitaplıklarını (libflutter.so, libapp.so) kısıtlıyor;
+    // eklentilerin .so dosyaları (webrtc, ML Kit, datastore…) yine her mimari
+    // için pakete giriyordu. Sonuçta APK "x86_64 destekliyorum" diyor ama içinde
+    // x86_64 motoru yok. Android cihazın tercih ettiği İLK mimariyi seçtiği için
+    // emülatörde (abilist: x86_64,arm64-v8a) primaryCpuAbi=x86_64 seçiliyor ve
+    // uygulama açılışta çöküyordu:
+    //   dlopen failed: libflutter.so is for EM_AARCH64 instead of EM_X86_64
+    // Aynı tuzak 32-bit (armeabi-v7a) telefonlarda da geçerliydi. Yan fayda:
+    //   ölü kitaplıklar çıkınca APK 87.5 MB → 49.2 MB.
+    //
+    // defaultConfig.ndk.abiFilters bunu YAPMIYOR (denendi) — bağımlılıklardan
+    // (AAR) gelen .so dosyaları o süzgece takılmıyor, paketleme adımı gerekiyor.
+    //
+    // Süzgeç Flutter'ın verdiği -Ptarget-platform ile kendiliğinden hizalanır;
+    // emülatör için x86_64 motorlu derleme almak yeterli:
+    //   flutter build apk --debug --target-platform android-arm64,android-x64
+    packaging {
+        jniLibs {
+            val abiOf = mapOf(
+                "android-arm" to "armeabi-v7a",
+                "android-arm64" to "arm64-v8a",
+                "android-x64" to "x86_64",
+            )
+            val requested = (project.findProperty("target-platform") as String?)
+                ?.split(",")
+                ?.mapNotNull { abiOf[it.trim()] }
+                ?: abiOf.values.toList()
+            // target-platform verilmediyse (düz `flutter build apk`) hiçbir şey
+            // süzülmez — Flutter zaten her mimariyi paketler.
+            excludes += (abiOf.values + "x86")
+                .filterNot { it in requested }
+                .map { "lib/$it/**" }
+        }
     }
 
     signingConfigs {

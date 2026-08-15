@@ -112,11 +112,34 @@ flutter build apk --release --target-platform android-arm64
 - Sürüm uyuşmazlığı hatası çıkarsa: `flutter pub upgrade` deneyip tekrar derle.
 - **Neden `--target-platform android-arm64`:** ML Kit + WebRTC + Firebase yerel
   kütüphaneleri her işlemci mimarisi için ayrı ayrı pakete giriyor. Bayraksız
-  **126 MB**, arm64 ile **87 MB** (ölçüldü). Ailedeki cihazların hepsi 2018
+  **126 MB**, arm64 ile **49 MB** (ölçüldü). Ailedeki cihazların hepsi 2018
   sonrası, yani 64-bit ARM — tek mimari yeterli. Kalan boyutun büyük kısmı ML
   Kit'in gömülü yüz modeli ve WebRTC; onlar mimariden bağımsız.
   (İleride çok eski bir tablet çıkarsa bayrağı kaldırıp yeniden derlemek yeter;
   kurulu uygulamalar etkilenmez.)
+- **Bayrak tek başına yetmiyordu** — `--target-platform` yalnızca Flutter'ın
+  kendi kitaplıklarını kısıtlar, eklentilerin `.so` dosyaları yine her mimari
+  için pakete girerdi. APK "x86_64 destekliyorum" der ama içinde x86_64 motoru
+  olmadığı için emülatör onu seçip açılışta çökerdi
+  (`dlopen failed: libflutter.so is for EM_AARCH64 instead of EM_X86_64`).
+  `android/app/build.gradle.kts` içindeki `packaging { jniLibs { excludes } }`
+  bloğu paketlemeyi `-Ptarget-platform` ile hizalıyor; 38 MB'lık ölü kitaplık
+  da böylece düştü.
+
+### Emülatörde denemek
+
+Emülatörler x86_64; yayın APK'sı arm64-only olduğu için orada çeviri katmanıyla
+çalışır (yavaş olabilir). Doğal hızda denemek için iki mimarili derleme al:
+
+```bash
+cd app
+flutter build apk --debug --target-platform android-arm64,android-x64
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+```
+
+Süzgeç `-Ptarget-platform`'u izlediği için gradle dosyasına dokunmak gerekmez.
+Kurulumdan sonra hangi mimarinin seçildiğini görmek istersen:
+`adb shell dumpsys package com.hophop.hophop | grep primaryCpuAbi`
 
 ## 6) Dağıt ve test et
 
