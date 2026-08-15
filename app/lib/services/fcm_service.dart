@@ -91,10 +91,10 @@ class FcmService {
         if (ActivityStore.activeChatId == from) break;
         ActivityStore.onIncomingMessage(from);
         // İçerik bildirimde gösterilmez (uçtan uca şifreli — yalnızca gönderen adı).
-        await NotificationService.showGeneral(
-          2003,
-          message.data['fromName'] as String? ?? 'Yeni mesaj',
-          'Sana bir mesaj gönderdi',
+        await NotificationService.showMessage(
+          id: 2003,
+          fromName: message.data['fromName'] as String? ?? 'Yeni mesaj',
+          body: 'Sana bir mesaj gönderdi',
           payload: 'chat:$from',
         );
       case 'typing':
@@ -142,10 +142,10 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
         '${message.data['byName']} artık arkadaşın — arayabilirsin!',
       );
     case 'new_message':
-      await NotificationService.showGeneral(
-        2003,
-        message.data['fromName'] as String? ?? 'Yeni mesaj',
-        'Sana bir mesaj gönderdi',
+      await NotificationService.showMessage(
+        id: 2003,
+        fromName: message.data['fromName'] as String? ?? 'Yeni mesaj',
+        body: 'Sana bir mesaj gönderdi',
         payload: 'chat:${message.data['fromUserId']}',
       );
       // Uygulama kapalıyken de "iletildi" (✓✓) damgalansın.

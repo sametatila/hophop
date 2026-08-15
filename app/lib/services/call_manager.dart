@@ -12,6 +12,7 @@ import 'activity_store.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
 import 'call_service.dart';
+import 'call_tones.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
 import 'notification_service.dart';
@@ -182,9 +183,11 @@ class CallManager {
           }
         }
       case 'call_rejected':
+        unawaited(CallTones.ended());
         _popIfCurrent<OutgoingCallScreen>();
         _toast('Cevaplamadı');
       case 'call_busy':
+        unawaited(CallTones.ended());
         _popIfCurrent<OutgoingCallScreen>();
         _toast('Meşgul — başka bir görüşmede');
     }
@@ -240,6 +243,9 @@ class CallManager {
       return;
     }
 
+    // "Aranıyor" tonu: karşı taraf çalarken arayan da bir şey duysun.
+    unawaited(CallTones.startRingback());
+
     var settled = false; // kabul, red veya iptal gerçekleşti mi
     // 'ringing'      → bildirim yollandı, karşı cihazdan haber yok
     // 'ringing_ok'   → karşı cihaz "çalıyorum" dedi (gerçekten çalıyor)
@@ -253,6 +259,7 @@ class CallManager {
     void cleanup() {
       sub?.cancel();
       timeout?.cancel();
+      CallTones.stopRingback();
     }
 
     sub = FcmService.callEvents.stream.listen((message) async {
@@ -291,6 +298,7 @@ class CallManager {
       try {
         await api.cancelCall(r.roomName, friend.id, video);
       } catch (_) {}
+      unawaited(CallTones.ended());
       _popIfCurrent<OutgoingCallScreen>();
       // Telefonu hiç çalmadıysa "cevaplamadı" demek yanıltıcı olur.
       _toast(status.value == 'ringing_ok'
@@ -405,6 +413,9 @@ class CallManager {
       _toast('Görüşme kurulamadı');
       return false;
     }
+    // "Bağlandı" tonu — iki tarafta da çalar (arayan ve cevaplayan).
+    unawaited(CallTones.stopRingback());
+    unawaited(CallTones.connected());
     // Ekranı açmayı beklemeden döneriz: görüşme artık ekrana değil, buradaki
     // duruma bağlı (küçültülünce ekran kapansa da oda ayakta kalır).
     unawaited(_showCallScreen(
@@ -471,6 +482,9 @@ class CallManager {
     _removeMini();
     _inCall = false;
     activeCall = null;
+    // "Kapandı" tonu: sessizce biten görüşme "kapattı mı, ağ mı gitti?"
+    // diye düşündürüyordu.
+    unawaited(CallTones.ended());
     // Bağlantı koptuysa (kullanıcı kapatmadı) tek dokunuşla yeniden ara.
     if (!dropped) return;
     final ctx = navigatorKey.currentContext;

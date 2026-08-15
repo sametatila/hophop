@@ -6,10 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.media.AudioAttributes
+import android.media.AudioManager
 import android.util.Rational
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -75,6 +80,24 @@ class MainActivity : FlutterActivity() {
                                 result.error("install_failed", e.message, null)
                             }
                         }
+                    }
+
+                    // Telefonun zil kipi: "silent" | "vibrate" | "normal".
+                    // Uygulama içi zil buna bakar — sessizdeki telefon
+                    // ötmemeli, titreşimdeki telefon da SESSİZ kalmamalı.
+                    "ringerMode" -> result.success(ringerMode())
+
+                    // Gelen aramada tekrarlayan titreşim. flutter'ın
+                    // HapticFeedback'i tek ve çok kısa bir darbe veriyor;
+                    // çalan telefonun titremesi için desen gerekiyor.
+                    "vibrateRing" -> {
+                        startRingVibration()
+                        result.success(null)
+                    }
+
+                    "vibrateStop" -> {
+                        stopRingVibration()
+                        result.success(null)
                     }
 
                     // Ahize kipinde yakınlık sensörü: telefon kulağa
@@ -179,6 +202,54 @@ class MainActivity : FlutterActivity() {
         } else {
             true
         }
+
+    // ---- Zil kipi ve titreşim ----
+
+    private fun ringerMode(): String {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return when (am.ringerMode) {
+            AudioManager.RINGER_MODE_SILENT -> "silent"
+            AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+            else -> "normal"
+        }
+    }
+
+    private fun vibrator(): Vibrator =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
+                .defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+    /// Telefon zili deseni: 0.4 sn titre, 0.6 sn dur — durdurulana kadar.
+    /// USAGE_NOTIFICATION_RINGTONE veriliyor ki sistem bunu "arama titreşimi"
+    /// sayıp sessiz kipte de (titreşim açıkken) çalıştırsın.
+    private fun startRingVibration() {
+        val v = vibrator()
+        if (!v.hasVibrator()) return
+        val pattern = longArrayOf(0, 400, 600)
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // repeat = 0: desenin başından itibaren sonsuz tekrar.
+            v.vibrate(VibrationEffect.createWaveform(pattern, 0), attrs)
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(pattern, 0, attrs)
+        }
+    }
+
+    private fun stopRingVibration() {
+        try {
+            vibrator().cancel()
+        } catch (e: Exception) {
+            // Titreşim motoru yoksa/erişilemezse sessizce geç.
+        }
+    }
 
     /// Android 14 (UPSIDE_DOWN_CAKE) öncesinde USE_FULL_SCREEN_INTENT kurulumda
     /// verilir; kullanıcının kapatabileceği bir anahtar yoktur → her zaman açık.

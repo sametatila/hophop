@@ -739,9 +739,12 @@ class _CallScreenState extends State<CallScreen>
                                 },
                               ),
                               _controlButton(
-                                _speakerOn
-                                    ? Icons.volume_up
-                                    : Icons.phone_in_talk,
+                                // İkon HEP hoparlör: düğme "hoparlör" düğmesi,
+                                // açık/kapalı olduğunu zemin rengi anlatıyor —
+                                // diğer düğmeler (mikrofon, kamera) de böyle.
+                                // Ahize ikonuna dönüşünce "şimdi hangisi açık?"
+                                // sorusu doğuyordu.
+                                Icons.volume_up,
                                 _speakerOn ? Colors.white38 : Colors.white24,
                                 () async {
                                   _speakerOn = !_speakerOn;

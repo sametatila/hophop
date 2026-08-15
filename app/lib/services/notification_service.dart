@@ -15,15 +15,33 @@ import 'auth_service.dart';
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
 
-  static const callChannel = AndroidNotificationChannel(
-    'incoming_call',
+  /// DİKKAT — kanal ayarları (ses, titreşim, önem) Android'de kanal BİR KEZ
+  /// oluşturulduktan sonra programla değiştirilemez. Ayarı değiştirmek için
+  /// kanal kimliğini artırmak ve eskisini silmek gerekir; yoksa güncelleme
+  /// alan cihazlarda hiçbir şey değişmez. Sürüm 2: zil akışı + titreşim deseni.
+  static final callChannel = AndroidNotificationChannel(
+    'incoming_call_v2',
     'Gelen Aramalar',
     description: 'HopHop gelen arama zili',
     importance: Importance.max,
     playSound: true,
     sound: RawResourceAndroidNotificationSound('ringtone'),
     enableVibration: true,
+    // Telefon zili deseni. Desen verilmezse Android kısacık tek bir darbe
+    // veriyor ve titreşimdeki telefonda arama fark edilmiyordu.
+    vibrationPattern: _ringVibration,
+    // Zil akışı: ses seviyesi kullanıcının ZİL ayarına bağlansın (bildirim
+    // ayarına değil) ve sistem bunu bir arama zili gibi ele alsın.
+    audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
   );
+
+  /// 0.4 sn titre / 0.6 sn dur.
+  static final Int64List _ringVibration =
+      Int64List.fromList([0, 400, 600, 400, 600, 400, 600, 400, 600]);
+
+  /// Eski kanal (sürüm 1) — güncelleyen cihazlarda ayar listesinde ölü bir
+  /// satır olarak kalmasın diye silinir.
+  static const _legacyCallChannelId = 'incoming_call';
 
   static const generalChannel = AndroidNotificationChannel(
     'general',
@@ -63,6 +81,7 @@ class NotificationService {
     }
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
+    await android?.deleteNotificationChannel(channelId: _legacyCallChannelId);
     await android?.createNotificationChannel(callChannel);
     await android?.createNotificationChannel(generalChannel);
   }
@@ -83,42 +102,55 @@ class NotificationService {
       channelDescription: callChannel.description,
       importance: Importance.max,
       priority: Priority.max,
+      // Akıllı saat/bileklik ve Android Auto bildirimi "arama" diye
+      // sınıflandırsın diye şart.
       category: AndroidNotificationCategory.call,
       // Kilitli/kapalı ekranda arama ekranı DOĞRUDAN açılır (WhatsApp gibi).
       // Mağaza dışı kurulumda izin varsayılan verilidir; reddedilmişse
       // Ayarlar'daki "Tam ekran arama" kartı yönlendirir.
       fullScreenIntent: true,
-      ongoing: true,
+      // ongoing KASITLI OLARAK KAPALI. Xiaomi bileklikleri ve pek çok
+      // giyilebilir, "ongoing" bildirimleri (ilerleme çubukları, müzik
+      // denetimleri…) yok sayar — WhatsApp/Viber aramalarının bileklikte
+      // görünmemesinin bilinen sebebi tam olarak bu bayrak. Bildirimin ekranda
+      // kalmasını zaten timeoutAfter + autoCancel:false sağlıyor.
+      ongoing: false,
       autoCancel: false,
       timeoutAfter: ringTimeout.inMilliseconds,
+      // Eski/sade giyilebilirler bildirim gövdesini değil "ticker" metnini
+      // okuyor; arama olduğu oradan da anlaşılsın.
+      ticker: '${call.callerName} arıyor',
       sound: callChannel.sound,
       playSound: true,
       enableVibration: true,
+      vibrationPattern: _ringVibration,
+      // Emoji YOK: bilekliklerin yazı tipinde emoji karşılığı olmadığı için
+      // ekranda kutu/soru işareti olarak çıkıyor ("karakter kodlama sorunu").
       actions: const [
         AndroidNotificationAction(
           'answer',
-          '✅ Cevapla',
+          'Cevapla',
           showsUserInterface: true, // uygulamayı açar
           cancelNotification: true,
         ),
         AndroidNotificationAction(
           'reject',
-          '❌ Reddet',
+          'Reddet',
           cancelNotification: true,
         ),
       ],
     );
     await _plugin.show(
       id: callNotificationId,
-      title: call.video ? '📹 ${call.callerName}' : '📞 ${call.callerName}',
+      title: call.callerName,
       // Grup davetinde odada kimler olduğu bildirimde de yazar; kullanıcı
       // ekranı açmadan katılıp katılmayacağına karar verebilsin.
       body: call.group && call.participants.isNotEmpty
           ? 'Grup araması — görüşmede: '
               '${call.participants.map((n) => n.split(' ').first).join(', ')}'
           : call.video
-              ? 'Görüntülü arıyor…'
-              : 'Sesli arıyor…',
+              ? 'Görüntülü arıyor'
+              : 'Sesli arıyor',
       notificationDetails: NotificationDetails(android: android),
       payload: jsonEncode(call.toData()),
     );
@@ -141,6 +173,45 @@ class NotificationService {
           channelDescription: generalChannel.description,
           importance: Importance.high,
           priority: Priority.high,
+          ticker: '$title: $body',
+        ),
+      ),
+      payload: payload,
+    );
+  }
+
+  /// Mesaj bildirimi — MessagingStyle ile.
+  ///
+  /// Neden ayrı: saatler ve bileklikler MessagingStyle taşıyan bildirimi
+  /// "sohbet" olarak tanır (gönderen adı ayrı, metin ayrı gösterilir); düz
+  /// bildirimde ise başlık+gövde tek satıra ezilip kim ne yazmış belirsizleşir.
+  /// [category: message] de aynı sınıflandırmaya yardım eder.
+  static Future<void> showMessage({
+    required int id,
+    required String fromName,
+    required String body,
+    String? payload,
+  }) async {
+    final person = Person(name: fromName, key: payload ?? fromName);
+    await _plugin.show(
+      id: id,
+      title: fromName,
+      body: body,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          generalChannel.id,
+          generalChannel.name,
+          channelDescription: generalChannel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.message,
+          ticker: '$fromName: $body',
+          styleInformation: MessagingStyleInformation(
+            person,
+            conversationTitle: fromName,
+            groupConversation: false,
+            messages: [Message(body, DateTime.now(), person)],
+          ),
         ),
       ),
       payload: payload,
