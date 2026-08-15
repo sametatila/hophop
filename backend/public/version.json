@@ -1,7 +1,7 @@
 {
-  "versionCode": 2,
-  "version": "1.0.1",
-  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.1/hophop-1.0.1.apk",
-  "size": 87260562,
-  "notes": "Ayarlar düzeni düzeltildi; \"Tam ekran arama\" izninin açık mı kapalı mı olduğu artık görünüyor. Yeni sürüm çıktığında bildirim ve uyarı geliyor — Ayarlar'a girip denetlemek gerekmiyor. \"Arka planda hazır bekle\" varsayılan olarak kapalı."
+  "versionCode": 3,
+  "version": "1.0.2",
+  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.2/hophop-1.0.2.apk",
+  "size": 87536854,
+  "notes": "Görüşürken küçük pencere: aramayı küçültünce uygulamada gezinmeye devam edebilirsin. Aranıyor, bağlandı ve kapandı sesleri eklendi. Telefon titreşimdeyken gelen arama artık titriyor. Akıllı bileklik ve saatlere gelen arama bildirimi düzeltildi."
 }
