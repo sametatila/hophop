@@ -68,8 +68,12 @@ class MinimizedCall {
 class CallManager {
   static final navigatorKey = GlobalKey<NavigatorState>();
   static StreamSubscription? _sub;
-  static bool _inCall = false;
   static ActiveCall? activeCall;
+
+  /// Görüşmede miyiz? AYRI BİR BAYRAK TUTULMUYOR: iki değişken kaçınılmaz
+  /// olarak birbirinden ayrı düşüyordu ve asılı kalan bayrak cihazı kalıcı
+  /// olarak "meşgul" yapıp gelen her aramayı sessizce reddettiriyordu.
+  static bool get _inCall => activeCall != null;
 
   /// İşlenmiş oda adları — FCM, dinleyici ve yoklama yolları aynı aramayı
   /// ASLA ikinci kez çaldırmaz (dinleyici yeniden bağlanıp aynı zil belgesini
@@ -425,7 +429,6 @@ class CallManager {
     required String roomName,
   }) async {
     if (_nav == null) return false;
-    _inCall = true;
     activeCall = ActiveCall(roomName: roomName, roomKeyB64: sharedKey, video: video);
     // Kamerayı LiveKit'e devretmeden önce önizlemeyi bırak: aynı anda iki
     // kamera oturumu açılamıyor.
@@ -440,7 +443,6 @@ class CallManager {
       );
     } catch (e, st) {
       debugPrint('HopHop: oda kurulamadı: $e\n$st');
-      _inCall = false;
       activeCall = null;
       _toast('Görüşme kurulamadı');
       return false;
@@ -480,8 +482,25 @@ class CallManager {
     bool replaceCurrent = false,
     MinimizedCall? resume,
   }) async {
-    final nav = _nav;
-    if (nav == null) return;
+    // Soğuk açılışta (bildirimdeki "Cevapla" ile) Navigator henüz kurulmamış
+    // olabiliyor. Eskiden burada sessizce vazgeçiliyordu: görüşme durumu
+    // asılı kalıyor ve cihaz o andan sonra gelen HER aramayı otomatik
+    // "meşgul" diye reddediyordu — kullanıcıya tek belirti sohbetteki cevapsız
+    // arama kaydı oluyordu. Kısa bir süre bekle, yine yoksa düzgünce kapat.
+    var nav = _nav;
+    for (var i = 0; nav == null && i < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      nav = _nav;
+    }
+    if (nav == null) {
+      debugPrint('HopHop: görüşme ekranı açılamadı — oda kapatılıyor');
+      try {
+        await room.disconnect();
+        await room.dispose();
+      } catch (_) {}
+      _finishCall(peer: peer, video: video, dropped: false);
+      return;
+    }
     final route = MaterialPageRoute(
       builder: (_) => CallScreen(
         room: room,
@@ -520,7 +539,6 @@ class CallManager {
     required bool dropped,
   }) {
     _removeMini();
-    _inCall = false;
     activeCall = null;
     unawaited(LockScreen.disable());
     unawaited(PreviewCamera.stop());

@@ -16,6 +16,7 @@ import '../services/pip_service.dart';
 import '../services/update_service.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
+import '../widgets/call_grid.dart';
 import '../widgets/hop_ui.dart';
 
 const int maxCallParticipants = 6;
@@ -577,12 +578,7 @@ class _CallScreenState extends State<CallScreen>
             else if (tiles.length == 1 && remotes.length == 1)
               _remoteTile(remotes.first, fullscreen: true)
             else
-              GridView.count(
-                crossAxisCount: 2,
-                childAspectRatio: MediaQuery.of(context).size.aspectRatio *
-                    (tiles.length <= 2 ? 0.5 : 1),
-                children: tiles,
-              ),
+              CallGrid(tiles: tiles),
 
             // ---- Küçült (sol üst) ----
             // Geri tuşunun görsel karşılığı: aramayı kapatmadan uygulama içi
@@ -837,7 +833,7 @@ class _CallScreenState extends State<CallScreen>
                                 // Ahize ikonuna dönüşünce "şimdi hangisi açık?"
                                 // sorusu doğuyordu.
                                 Icons.volume_up,
-                                _speakerOn ? Colors.white38 : Colors.white24,
+                                Colors.white24,
                                 () async {
                                   _speakerOn = !_speakerOn;
                                   _applyProximity();
@@ -845,6 +841,7 @@ class _CallScreenState extends State<CallScreen>
                                       .setSpeakerOutputPreferred(_speakerOn);
                                   setState(() {});
                                 },
+                                active: _speakerOn,
                               ),
                               _controlButton(
                                 Icons.person_add,
@@ -956,7 +953,11 @@ class _CallScreenState extends State<CallScreen>
     } catch (_) {}
   }
 
-  Widget _controlButton(IconData icon, Color color, VoidCallback onTap) {
+  /// [active] açık bir AÇIK durumu anlatır: dolu beyaz daire + koyu ikon
+  /// (WhatsApp'ın açık/kapalı dili). Eskiden fark yalnızca iki yakın gri tonu
+  /// arasındaydı ve hoparlörün açık olup olmadığı anlaşılmıyordu.
+  Widget _controlButton(IconData icon, Color color, VoidCallback onTap,
+      {bool active = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Pressable(
@@ -964,8 +965,21 @@ class _CallScreenState extends State<CallScreen>
         child: Container(
           width: 52,
           height: 52,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          child: Icon(icon, color: Colors.white, size: 25),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active ? Colors.white : color,
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(icon,
+              color: active ? Colors.black87 : Colors.white, size: 25),
         ),
       ),
     );
