@@ -240,7 +240,7 @@ class CallManager {
       return;
     }
 
-    late final ({
+    late ({
       String roomName,
       String livekitToken,
       String livekitUrl,
@@ -258,6 +258,22 @@ class CallManager {
       // atamaz — bu yüzden roomName'den bağımsız sarma bağlamı kullanıyoruz.
       final wrapped = await crypto.wrapRoomKey(publicKey, 'call', roomKey);
       r = await api.initiateCall(friend.id, video, wrapped);
+
+      // Önbellekteki açık anahtar bayat olabilir (karşı taraf başka cihazdan
+      // girdiyse ya da hesap değiştirdiyse). O zaman oda anahtarını YANLIŞ
+      // anahtarla sarmış oluruz ve karşı taraf çözemez — hata karşı tarafta
+      // "SecretBox has wrong message authentication code" olarak patlıyordu.
+      // initiate yanıtı güncel anahtarı getiriyor: uyuşmuyorsa aramayı iptal
+      // edip taze anahtarla bir kez daha kuruyoruz.
+      final fresh = r.calleePublicKey;
+      if (fresh != null && fresh.isNotEmpty && fresh != publicKey) {
+        debugPrint('HopHop: karşının açık anahtarı bayatmış — yeniden sarılıyor');
+        try {
+          await api.cancelCall(r.roomName, friend.id, video);
+        } catch (_) {}
+        final rewrapped = await crypto.wrapRoomKey(fresh, 'call', roomKey);
+        r = await api.initiateCall(friend.id, video, rewrapped);
+      }
     } on ApiException {
       _toast('Arama başlatılamadı — bağlantını kontrol et');
       return;
@@ -401,9 +417,16 @@ class CallManager {
       return false;
     } catch (e, st) {
       debugPrint('HopHop: aramaya katılınamadı: $e\n$st');
-      // Sebebi de yaz: düz "katılınamadı" hata ihbarlarını teşhis edilemez
-      // kılıyordu.
-      _toast('Aramaya katılınamadı: $e');
+      // Oda anahtarı çözülemedi: iki tarafın açık anahtarları uyuşmuyor
+      // (karşı taraf başka cihazdan girmiş ya da hesap değiştirmiş olabilir).
+      // Ham kripto hatası kullanıcıya hiçbir şey anlatmıyor.
+      final text = e.toString();
+      final keyMismatch = text.contains('SecretBox') ||
+          text.contains('authentication code');
+      _toast(keyMismatch
+          ? 'Güvenlik anahtarları uyuşmadı. İki tarafın da uygulamayı bir kez '
+              'açıp kapatması yeterli.'
+          : 'Aramaya katılınamadı: $e');
       return false;
     }
   }

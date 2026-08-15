@@ -10,9 +10,25 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// sunucuya gönderilmez — LiveKit/Vercel/yönetici medyayı çözemez.
 class CryptoService {
   static const _storage = FlutterSecureStorage();
-  static const _kPrivate = 'e2ee_private_seed';
+
+  /// Sürüm 1: cihaz başına TEK anahtar. Aynı cihazda hesap değiştirildiğinde
+  /// yeni hesabın profiline de bu anahtar yazılıyordu; iki hesap aynı açık
+  /// anahtarı paylaşınca ECDH ortak sırrı tutmuyor ve karşı taraf oda
+  /// anahtarını çözemiyordu ("SecretBox has wrong message authentication
+  /// code"). Yeni kurulumlarda kullanılmaz; yalnızca göç için okunur.
+  static const _kLegacyPrivate = 'e2ee_private_seed';
+
+  /// Anahtar artık KULLANICI başına saklanır: hesap değiştirip geri dönmek
+  /// eski anahtarı bozmaz, iki hesap birbirinin anahtarını ezmez.
+  static String _keyName(String userId) => 'e2ee_private_seed_$userId';
 
   final _x25519 = X25519();
+
+  /// Oturumdaki kullanıcı. Girişte ve oturum geri yüklenirken bağlanır.
+  String? _userId;
+
+  /// Hangi kullanıcının anahtarıyla çalışılacağını belirler.
+  void bindUser(String? userId) => _userId = userId;
 
   /// Var olan anahtar çiftini yükler; yoksa üretir. Açık anahtarı (base64) döner.
   Future<String> ensureKeyPair() async {
@@ -22,13 +38,30 @@ class CryptoService {
   }
 
   Future<SimpleKeyPair> _keyPair() async {
-    final stored = await _storage.read(key: _kPrivate);
+    // Kullanıcı bağlanmamışsa (beklenmedik durum) eski davranışa düşülür ki
+    // mevcut oturumlar bir anda çözemez hâle gelmesin.
+    final name = _userId == null ? _kLegacyPrivate : _keyName(_userId!);
+
+    final stored = await _storage.read(key: name);
     if (stored != null) {
       return _x25519.newKeyPairFromSeed(base64Decode(stored));
     }
+
+    // Göç: bu cihazda sürüm 1 anahtarı varsa onu İLK giren kullanıcı devralır.
+    // Böylece güncellemeden sonra o kullanıcının sunucudaki açık anahtarı
+    // geçerli kalır ve süren sohbetler çözülmeye devam eder.
+    if (_userId != null) {
+      final legacy = await _storage.read(key: _kLegacyPrivate);
+      if (legacy != null) {
+        await _storage.write(key: name, value: legacy);
+        await _storage.delete(key: _kLegacyPrivate);
+        return _x25519.newKeyPairFromSeed(base64Decode(legacy));
+      }
+    }
+
     final kp = await _x25519.newKeyPair();
     final seed = await kp.extractPrivateKeyBytes();
-    await _storage.write(key: _kPrivate, value: base64Encode(seed));
+    await _storage.write(key: name, value: base64Encode(seed));
     return kp;
   }
 

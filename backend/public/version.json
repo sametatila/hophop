@@ -1,7 +1,7 @@
 {
-  "versionCode": 6,
-  "version": "1.0.5",
-  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.5/hophop-1.0.5.apk",
-  "size": 49243003,
-  "notes": "Aramaya katılamama sorunu: görüşmeye girmek artık kameraya bağlı değil, kamera açılamazsa bile görüşme başlıyor. Hesap değiştirdikten sonra eski hesabın aramalarının gelmesi düzeltildi. Hata mesajları artık sebebi de yazıyor."
+  "versionCode": 7,
+  "version": "1.0.6",
+  "url": "https://github.com/sametatila/hophop/releases/download/v1.0.6/hophop-1.0.6.apk",
+  "size": 49242999,
+  "notes": "Aramaya katılamama (güvenlik anahtarı hatası) düzeltildi: E2EE anahtarı artık cihaz başına değil hesap başına saklanıyor, aynı telefonda hesap değiştirmek anahtarları bozmuyor. Arayan taraf da bayat anahtar kullanmışsa kendiliğinden düzeltiyor."
 }

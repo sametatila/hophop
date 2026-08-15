@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/models.dart';
 import '../theme/hop_theme.dart';
 import 'api_client.dart';
+import 'crypto_service.dart';
 import 'ring_listener.dart';
 
 /// Oturum + yerel önbellek. Oturum JWT'si ve E2EE özel anahtarı
@@ -42,11 +43,13 @@ class AuthService {
     if (cached != null) {
       me = UserProfile.fromJson(
           jsonDecode(cached) as Map<String, dynamic>, friendStatus: 'self');
+      crypto.bindUser(me?.id); // E2EE anahtarı kullanıcı başına saklanıyor
       appMode.value = modeForBirthDate(me?.birthDate);
     }
     // Arka planda tazele; ağ yoksa önbellekle devam.
     try {
       me = await api.me();
+      crypto.bindUser(me?.id);
       appMode.value = modeForBirthDate(me?.birthDate);
       await _storage.write(key: _kUser, value: jsonEncode(me!.toJson()));
     } on ApiException catch (e) {
@@ -63,6 +66,7 @@ class AuthService {
     final r = await api.login(firstName, lastName, birthDate);
     api.setToken(r.token);
     me = r.user;
+    crypto.bindUser(r.user.id);
     appMode.value = modeForBirthDate(r.user.birthDate);
     await _storage.write(key: _kToken, value: r.token);
     await _storage.write(key: _kUser, value: jsonEncode(r.user.toJson()));
@@ -105,6 +109,7 @@ class AuthService {
       }
     } catch (_) {}
     api.setToken(null);
+    crypto.bindUser(null);
     me = null;
     await _storage.delete(key: _kToken);
     await _storage.delete(key: _kUser);
