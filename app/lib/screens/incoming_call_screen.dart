@@ -9,6 +9,7 @@ import '../services/ringtone_player.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
+import '../widgets/preview_layer.dart';
 
 /// Uygulama içi gelen arama ekranı (uygulama açıkken; kapalıyken bildirim var).
 /// Cevaplayınca ekran kapanmaz: "Bağlanıyor…" durumuna geçer ve görüşme
@@ -30,11 +31,20 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   void initState() {
     super.initState();
     _timeout = Timer(ringTimeout, () {
-      if (mounted && !_connecting) {
-        CallManager.ringScreenClosed(widget.call.roomName);
-        RingtonePlayer.stop();
-        ActivityStore.recordMissed(widget.call.callerId); // cevapsız
+      if (!mounted || _connecting) return;
+      CallManager.ringScreenClosed(widget.call.roomName);
+      RingtonePlayer.stop();
+      ActivityStore.recordMissed(widget.call.callerId); // cevapsız
+      // pop() YIĞININ EN ÜSTÜNÜ atar, bu ekranı değil. Yarışlar yüzünden bu
+      // ekran görüşme ekranının ALTINDA kalabiliyor; düz pop çağrısı o durumda
+      // 45 saniye sonra SÜREN GÖRÜŞMEYİ kapatırdı. Kendi rotamızı adresleyerek
+      // kaldırıyoruz.
+      final route = ModalRoute.of(context);
+      if (route == null) return;
+      if (route.isCurrent) {
         Navigator.of(context).pop();
+      } else if (route.isActive) {
+        Navigator.of(context).removeRoute(route);
       }
     });
     AuthService.cachedFriends().then((friends) {
@@ -99,6 +109,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                 ),
               ),
             ),
+            // Görüntülü arama gelirken kendini gör (WhatsApp gibi).
+            PreviewLayer(enabled: widget.call.video),
             const BlobBackground(dark: true),
             SafeArea(
           child: SizedBox.expand(

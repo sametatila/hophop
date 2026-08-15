@@ -11,10 +11,12 @@ import android.media.AudioManager
 import android.util.Rational
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.WindowManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -80,6 +82,14 @@ class MainActivity : FlutterActivity() {
                                 result.error("install_failed", e.message, null)
                             }
                         }
+                    }
+
+                    // Görüşme süresince pencere kilit ekranının üstünde
+                    // durabilsin. Görüşme bitince KAPATILIR — sohbetler
+                    // kilitli telefonda görünmemeli.
+                    "lockScreenCall" -> {
+                        setLockScreenVisible(call.argument<Boolean>("on") == true)
+                        result.success(null)
                     }
 
                     // Telefonun zil kipi: "silent" | "vibrate" | "normal".
@@ -202,6 +212,49 @@ class MainActivity : FlutterActivity() {
         } else {
             true
         }
+
+    // ---- Kilit ekranı ----
+
+    /// Pencerenin kilit ekranının üstünde açılıp ekranı uyandırması.
+    ///
+    /// NEDEN MANİFESTTE DEĞİL: `android:showWhenLocked` etkinliğe kalıcı olarak
+    /// verilseydi, kullanıcı uygulama açıkken telefonu kilitlediğinde sohbetler
+    /// kilit ekranında görünürdü. Bu yüzden yalnızca arama boyunca açılıyor.
+    private fun setLockScreenVisible(on: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(on)
+            setTurnScreenOn(on)
+        } else {
+            @Suppress("DEPRECATION")
+            val flags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            if (on) window.addFlags(flags) else window.clearFlags(flags)
+        }
+    }
+
+    /// Uygulama, gelen arama bildiriminin tam ekran niyetiyle mi açılıyor?
+    /// Eklenti bildirimden doğan niyete SELECT_NOTIFICATION eylemini ve
+    /// payload'ı koyuyor; arama payload'ı JSON, diğerleri ("chat:…", "update")
+    /// düz metin.
+    private fun isCallLaunch(intent: Intent?): Boolean {
+        if (intent?.action != "SELECT_NOTIFICATION") return false
+        return intent.getStringExtra("payload")?.trimStart()?.startsWith("{") == true
+    }
+
+    /// Kilit ekranı bayrağı ONCREATE'te verilmeli: Flutter ayağa kalkıp bize
+    /// haber verene kadar beklenirse pencere çoktan kilidin ARKASINA yerleşmiş
+    /// oluyor ve kullanıcı yalnızca bildirimi görüyor.
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (isCallLaunch(intent)) setLockScreenVisible(true)
+    }
+
+    /// launchMode=singleTop: uygulama zaten açıkken gelen aramada onCreate
+    /// çalışmaz, niyet buraya düşer.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (isCallLaunch(intent)) setLockScreenVisible(true)
+    }
 
     // ---- Zil kipi ve titreşim ----
 

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../config.dart';
 import '../effects/effect_painter.dart';
 import '../effects/fx_controller.dart';
 import '../models/models.dart';
@@ -12,6 +14,7 @@ import '../services/call_manager.dart';
 import '../services/crypto_service.dart';
 import '../services/pip_service.dart';
 import '../services/update_service.dart';
+import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
 
@@ -71,6 +74,12 @@ class _CallScreenState extends State<CallScreen>
   /// Ekran küçük pencereye devrediliyor: görüşme BİTMİYOR, bu yüzden
   /// dispose'da oda kapatılmaz ve süre sunucuya işlenmez.
   bool _toMini = false;
+
+  /// Davet edilip henüz katılmamış kişiler (kullanıcı kimliğine göre).
+  /// Izgarada "Aranıyor" kartı olarak durur; katılınca ya da cevap gelmeyince
+  /// kalkar. Sıra korunsun diye LinkedHashMap davranışı yeterli.
+  final _pending = <String, _PendingInvite>{};
+  final _pendingTimers = <String, Timer>{};
   bool _reconnecting = false; // zayıf bağlantı: "Yeniden bağlanıyor…" durumu
   bool _peerLost = false; // karşı tarafın bağlantısı gitti (biz iyiyiz)
   bool _recovering = false; // kendi yeniden bağlanma döngümüz sürüyor
@@ -155,6 +164,8 @@ class _CallScreenState extends State<CallScreen>
       })
       ..on<ParticipantConnectedEvent>((e) {
         _emptyRoomGuard?.cancel();
+        // Davet ettiğimiz kişi katıldı — bekleme kartı gerçek karoya bıraksın.
+        _clearPending(e.participant.identity);
         setState(() {});
         // Grup arama: davet edilen katılınca herkes görsün.
         if (widget.room.remoteParticipants.length > 1 && mounted) {
@@ -272,6 +283,9 @@ class _CallScreenState extends State<CallScreen>
     _reconnectWatchdog?.cancel();
     _peerLostTimer?.cancel();
     _emptyRoomGuard?.cancel();
+    for (final t in _pendingTimers.values) {
+      t.cancel();
+    }
     _fxTicker?.dispose();
     _fxClock.dispose();
     _listener?.dispose();
@@ -350,6 +364,78 @@ class _CallScreenState extends State<CallScreen>
     final remotes = widget.room.remoteParticipants.values;
     if (remotes.length <= 1) return widget.peer.firstName;
     return '${remotes.length + 1} kişi';
+  }
+
+  // ---- Bekleyen davetler ----
+
+  /// Kartı ızgaraya koyar ve zil süresi kadar bekler. Süre dolarsa kart
+  /// "Cevap vermedi"ye döner ve kısa bir süre sonra kaybolur — anında silmek
+  /// "ben kimi davet etmiştim?" sorusunu cevapsız bırakıyordu.
+  void _addPending(UserProfile user) {
+    _pendingTimers[user.id]?.cancel();
+    setState(() => _pending[user.id] = _PendingInvite(user));
+    _pendingTimers[user.id] = Timer(ringTimeout, () {
+      if (!mounted || !_pending.containsKey(user.id)) return;
+      setState(() => _pending[user.id]!.noAnswer = true);
+      _pendingTimers[user.id] = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _pending.remove(user.id));
+      });
+    });
+  }
+
+  void _clearPending(String userId) {
+    _pendingTimers.remove(userId)?.cancel();
+    _pending.remove(userId);
+  }
+
+  /// Bekleyen davet kartı: nabız halkası içinde avatar + durum satırı.
+  Widget _pendingTile(_PendingInvite invite) {
+    final waiting = !invite.noAnswer;
+    return Container(
+      key: ValueKey('pending-${invite.user.id}'),
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(Hop.radius),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (waiting)
+            PulseRing(radius: 42, child: Avatar(user: invite.user, radius: 36))
+          else
+            Opacity(
+              opacity: 0.5,
+              child: Avatar(user: invite.user, radius: 36),
+            ),
+          const SizedBox(height: 10),
+          Text(
+            invite.user.firstName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            waiting ? 'Aranıyor…' : 'Cevap vermedi',
+            style: TextStyle(
+                color: waiting ? Colors.white70 : Colors.orangeAccent,
+                fontSize: 12),
+          ),
+        ],
+      ),
+    )
+        // Kart ızgaraya yaylanarak girer; "Cevap vermedi"ye düşünce solar ve
+        // 3 saniye sonra zamanlayıcı onu listeden alır.
+        .animate(key: ValueKey('pending-anim-${invite.user.id}-$waiting'))
+        .fadeIn(duration: Hop.normal)
+        .scaleXY(
+            begin: 0.85,
+            end: 1,
+            duration: Hop.normal,
+            curve: Curves.easeOutBack);
   }
 
   // ---- Davet (grup arama) ----
@@ -437,21 +523,19 @@ class _CallScreenState extends State<CallScreen>
     if (invited == null || invited.isEmpty) return;
     for (final id in invited) {
       final friend = _friends.firstWhere((f) => f.id == id);
+      // Kart daveti göndermeden ÖNCE konur: ağ yavaşsa bile kullanıcı kimi
+      // çağırdığını anında görür.
+      if (mounted) _addPending(friend);
       try {
         final wrapped = await crypto.wrapRoomKey(
             friend.publicKey!, 'call', active.roomKeyB64);
         await api.inviteToCall(active.roomName, id, active.video, wrapped);
       } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${friend.firstName} davet edilemedi')));
-        }
+        if (!mounted) return;
+        setState(() => _clearPending(id));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${friend.firstName} davet edilemedi')));
       }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              '${invited.length} kişi aranıyor — katıldıklarında görünecekler')));
     }
   }
 
@@ -462,6 +546,10 @@ class _CallScreenState extends State<CallScreen>
     final remotes = widget.room.remoteParticipants.values.toList()
       ..sort((a, b) => a.identity.compareTo(b.identity));
     final local = _localVideo;
+    final tiles = <Widget>[
+      for (final p in remotes) _remoteTile(p),
+      for (final invite in _pending.values) _pendingTile(invite),
+    ];
 
     // Küçük pencerede yalnızca görüntü/avatar kalır: kontroller, üst bilgi ve
     // efekt paneli gizlenir — o boyutta hepsi okunmaz bir yığına dönüyor.
@@ -479,17 +567,21 @@ class _CallScreenState extends State<CallScreen>
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // ---- Uzak katılımcılar ----
-            if (remotes.isEmpty)
+            // ---- Uzak katılımcılar + davet edilip beklenenler ----
+            // Davet edilen kişi ızgaraya HEMEN bir kart olarak girer ("Aranıyor"),
+            // katılınca kart yerini gerçek görüntüsüne bırakır, cevap vermezse
+            // "Cevap vermedi" yazıp kaybolur. Böylece kimi çağırdığın ve ne
+            // olduğu ekranda görünür kalıyor (WhatsApp davranışı).
+            if (tiles.isEmpty)
               _connectingView()
-            else if (remotes.length == 1)
+            else if (tiles.length == 1 && remotes.length == 1)
               _remoteTile(remotes.first, fullscreen: true)
             else
               GridView.count(
                 crossAxisCount: 2,
                 childAspectRatio: MediaQuery.of(context).size.aspectRatio *
-                    (remotes.length <= 2 ? 0.5 : 1),
-                children: [for (final p in remotes) _remoteTile(p)],
+                    (tiles.length <= 2 ? 0.5 : 1),
+                children: tiles,
               ),
 
             // ---- Küçült (sol üst) ----
@@ -878,4 +970,12 @@ class _CallScreenState extends State<CallScreen>
       ),
     );
   }
+}
+
+/// Davet edildi, henüz katılmadı. [noAnswer] true olunca kart "Cevap vermedi"
+/// durumuna geçer ve kısa süre sonra ızgaradan alınır.
+class _PendingInvite {
+  final UserProfile user;
+  bool noAnswer = false;
+  _PendingInvite(this.user);
 }

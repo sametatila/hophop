@@ -3,6 +3,7 @@ import '../models/models.dart';
 import '../theme/hop_theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/hop_ui.dart';
+import '../widgets/preview_layer.dart';
 
 /// Giden arama ekranı. Gelen arama ekranıyla aynı görsel dil:
 /// çalarken nabız halkaları, bağlanırken halkalar durur + spinner gelir
@@ -59,6 +60,9 @@ class OutgoingCallScreen extends StatelessWidget {
                 ),
               ),
             ),
+            // Görüntülü ararken degradenin üstünde kendi kameran (WhatsApp
+            // gibi); sesli aramada ve görüntü hazır değilken hiç çizilmez.
+            PreviewLayer(enabled: video),
             const BlobBackground(dark: true),
             SafeArea(
               child: ValueListenableBuilder(

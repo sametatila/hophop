@@ -15,8 +15,10 @@ import 'call_service.dart';
 import 'call_tones.dart';
 import 'crypto_service.dart';
 import 'fcm_service.dart';
+import 'lock_screen.dart';
 import 'notification_service.dart';
 import 'pip_service.dart';
+import 'preview_camera.dart';
 import 'ringtone_player.dart';
 import 'update_service.dart';
 
@@ -105,6 +107,8 @@ class CallManager {
     }
     _handledRooms.add(ring.roomName);
     _ringing = ring;
+    // Kilitli telefonda arama ekranı keyguard'ın üstünde açılsın.
+    unawaited(LockScreen.enable());
     // Arayana "telefonu gerçekten çalıyor" de. Bildirimin FCM tarafından kabul
     // edilmesi çaldığı anlamına gelmiyordu; arayan bu onay gelmezse boşuna
     // bekliyordu. Başarısız olursa arama akışı etkilenmez.
@@ -116,6 +120,9 @@ class CallManager {
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (foreground) {
+      // Görüntülü arama gelirken kendini gör (WhatsApp gibi). Arka planda
+      // Android kamerayı vermediği için yalnızca ön planda denenir.
+      if (ring.video) unawaited(PreviewCamera.start());
       RingtonePlayer.start();
     } else {
       await NotificationService.showIncomingCall(ring);
@@ -137,6 +144,8 @@ class CallManager {
     if (ring == null) return;
     if (roomName != null && roomName != ring.roomName) return;
     _ringing = null;
+    unawaited(LockScreen.disable());
+    unawaited(PreviewCamera.stop());
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
     await ActivityStore.recordMissed(ring.callerId);
@@ -150,6 +159,11 @@ class CallManager {
     if (_ringing?.roomName == roomName) {
       _ringing = null;
       _ringRoute = null;
+      // Cevaplanmadan kapandı — kilit ekranı yetkisi geri alınmalı.
+      if (!_inCall) {
+        unawaited(LockScreen.disable());
+        unawaited(PreviewCamera.stop());
+      }
     }
   }
 
@@ -184,10 +198,12 @@ class CallManager {
         }
       case 'call_rejected':
         unawaited(CallTones.ended());
+        unawaited(PreviewCamera.stop());
         _popIfCurrent<OutgoingCallScreen>();
         _toast('Cevaplamadı');
       case 'call_busy':
         unawaited(CallTones.ended());
+        unawaited(PreviewCamera.stop());
         _popIfCurrent<OutgoingCallScreen>();
         _toast('Meşgul — başka bir görüşmede');
     }
@@ -245,6 +261,8 @@ class CallManager {
 
     // "Aranıyor" tonu: karşı taraf çalarken arayan da bir şey duysun.
     unawaited(CallTones.startRingback());
+    // Görüntülü ararken kendini gör (WhatsApp gibi).
+    if (video) unawaited(PreviewCamera.start());
 
     var settled = false; // kabul, red veya iptal gerçekleşti mi
     // 'ringing'      → bildirim yollandı, karşı cihazdan haber yok
@@ -299,6 +317,7 @@ class CallManager {
         await api.cancelCall(r.roomName, friend.id, video);
       } catch (_) {}
       unawaited(CallTones.ended());
+      unawaited(PreviewCamera.stop());
       _popIfCurrent<OutgoingCallScreen>();
       // Telefonu hiç çalmadıysa "cevaplamadı" demek yanıltıcı olur.
       _toast(status.value == 'ringing_ok'
@@ -316,6 +335,7 @@ class CallManager {
           if (settled) return;
           settled = true;
           cleanup();
+          unawaited(PreviewCamera.stop());
           try {
             await api.cancelCall(r.roomName, friend.id, video);
           } catch (_) {}
@@ -333,7 +353,13 @@ class CallManager {
     // Önce zil durumu temizlenir: cevap sonrası sunucunun zil belgesini
     // silmesi handleRingGone'u tetiklememeli.
     _ringing = null;
-    _ringRoute = null;
+    // Odayı BURADA işaretle. Eskiden bunun handleRing'de yapılmış olduğu
+    // varsayılıyordu; oysa bildirimden cevaplanan soğuk açılışta handleRing bu
+    // isolate'te hiç çalışmıyor. İşaretlenmeyen oda, cevap verdikten sonra
+    // gerçek-zamanlı dinleyici ya da bekleyen-arama yoklamasıyla tekrar gelip
+    // görüşmenin ALTINA bir "gelen arama" ekranı bırakıyordu; görüşme bitince
+    // o ekran karşımıza çıkıyordu.
+    _handledRooms.add(call.roomName);
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
     // oda _handledRooms kümesinde kalır — yeniden çalmaz
@@ -376,6 +402,9 @@ class CallManager {
   static Future<void> rejectIncoming(IncomingCall call) async {
     _ringing = null;
     _ringRoute = null;
+    _handledRooms.add(call.roomName); // bkz. answerIncoming
+    unawaited(LockScreen.disable());
+    unawaited(PreviewCamera.stop());
     await NotificationService.cancelIncomingCall();
     await RingtonePlayer.stop();
     // oda _handledRooms kümesinde kalır — yeniden çalmaz
@@ -398,6 +427,9 @@ class CallManager {
     if (_nav == null) return false;
     _inCall = true;
     activeCall = ActiveCall(roomName: roomName, roomKeyB64: sharedKey, video: video);
+    // Kamerayı LiveKit'e devretmeden önce önizlemeyi bırak: aynı anda iki
+    // kamera oturumu açılamıyor.
+    await PreviewCamera.stop();
     final Room room;
     try {
       room = await CallService.connect(
@@ -462,9 +494,17 @@ class CallManager {
       ),
       fullscreenDialog: true,
     );
-    final result = replaceCurrent && nav.canPop()
-        ? await nav.pushReplacement(route)
-        : await nav.push(route);
+    // Çalan ekranı pushReplacement'a bırakmıyoruz: o yalnızca EN ÜSTTEKİ rotayı
+    // değiştirir. Zil ekranı yarışlar yüzünden görüşme ekranının altında
+    // kalabildiği için rotayı adıyla kaldırıyoruz — görüşme bitince altından
+    // "gelen arama" ekranı çıkmasın.
+    final ringRoute = _ringRoute;
+    _ringRoute = null;
+    final pushed = replaceCurrent && ringRoute == null && nav.canPop()
+        ? nav.pushReplacement(route)
+        : nav.push(route);
+    if (ringRoute != null && ringRoute.isActive) nav.removeRoute(ringRoute);
+    final result = await pushed;
     if (result is MinimizedCall) {
       _showMini(result);
       return;
@@ -482,6 +522,8 @@ class CallManager {
     _removeMini();
     _inCall = false;
     activeCall = null;
+    unawaited(LockScreen.disable());
+    unawaited(PreviewCamera.stop());
     // "Kapandı" tonu: sessizce biten görüşme "kapattı mı, ağ mı gitti?"
     // diye düşündürüyordu.
     unawaited(CallTones.ended());
